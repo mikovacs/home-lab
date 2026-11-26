@@ -52,7 +52,10 @@ class InstallFlowTests(unittest.TestCase):
                 args=list(map(str,args));commands.append(args)
                 if args[0]=='docker' and 'compose' in args:
                     if '--env-file' in args:configs.append(kwargs.get('env',{}).get('REPO_ROOT'))
-                    if 'hash_password' in args:return 'pbkdf2_sha256$policy$salt$encoded\n'
+                    if '--entrypoint' in args and args[args.index('--entrypoint')+1]=='python':
+                        self.assertIn('make_password(input())', args[-1])
+                        self.assertEqual(kwargs.get('input'),'test-only-long-owner-password\n')
+                        return 'pbkdf2_sha256$policy$salt$encoded\n'
                     if 'ps' in args:return json.dumps([{'Service':'test-app','State':'running','Health':'healthy'}])
                 if args[0]=='htpasswd':return 'homelab-admin:$2y$test-only-protected-hash\n'
                 return ''

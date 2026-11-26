@@ -27,8 +27,9 @@ These tests require a running Docker daemon and can download the pinned images:
 python3 tests/runtime_routes.py
 python3 tests/runtime_storage.py
 python3 tests/runtime_bind_refresh.py
+python3 tests/runtime_authentik_hash.py
 ```
 
-They use disposable projects and temporary files, then remove their own resources. They check proxy routing with stub origins, refusal to start on invalid/missing storage, and container bind refresh after source replacement. They do not use real media, credentials or provider accounts, and do not replace the [installation checks](installation-checks.md) on the server.
+They use disposable projects and temporary files, then remove their own resources. They check proxy routing with stub origins, refusal to start on invalid/missing storage, container bind refresh after source replacement, and Authentik password hashing before PostgreSQL exists. They do not use real media, credentials or provider accounts, and do not replace the [installation checks](installation-checks.md) on the server.
 
 See [adding a service](adding-services.md) for implementation requirements and [releases](releases.md) for packaging. CI validates and packages; it never deploys.

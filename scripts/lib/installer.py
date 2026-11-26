@@ -65,8 +65,12 @@ def new_password(label):
 
 def hash_authentik_password(c, password):
     h.require(len(password) >= 14 and '\n' not in password and '\r' not in password, 'Use at least 14 characters, without line breaks')
-    # Use the pinned image's own hash policy; no guessed Django iteration/salt settings.
-    output = h.compose(c, 'identity', 'run', '--rm', '--no-deps', '-T', 'server', 'hash_password',
+    # Both the image entrypoint and manage.py wait for PostgreSQL, which is not
+    # running during credential setup. Load only the pinned image's hash policy.
+    script = ('import os; os.environ["DJANGO_SETTINGS_MODULE"] = "authentik.root.settings"; '
+              'from django.contrib.auth.hashers import make_password; print(make_password(input()))')
+    output = h.compose(c, 'identity', 'run', '--rm', '--no-deps', '-T', '--entrypoint', 'python',
+                       'server', '-c', script,
                        capture=True, stdin_text=password + '\n')
     hashes = [line.strip() for line in output.splitlines()
               if line.strip().startswith(('pbkdf2_sha256$', 'argon2$', 'bcrypt_sha256$', 'scrypt$'))]

@@ -122,6 +122,16 @@ class InstallerTests(unittest.TestCase):
         self.assertNotIn(password, str(compose.call_args.args))
         self.assertEqual(compose.call_args.kwargs['stdin_text'], password + '\n')
         self.assertIn('--no-deps', compose.call_args.args)
+        args = compose.call_args.args
+        self.assertEqual(args[args.index('--entrypoint') + 1], 'python')
+        self.assertNotIn('hash_password', args)
+        self.assertIn('authentik.root.settings', args[-1])
+
+    def test_bootstrap_password_rejects_missing_or_ambiguous_hash_output(self):
+        for output in ('', 'Loaded config\n', 'pbkdf2_sha256$a\npbkdf2_sha256$b\n'):
+            with self.subTest(output=output), patch.object(h, 'compose', return_value=output):
+                with self.assertRaises(h.SafetyError):
+                    ui.hash_authentik_password(self.values(), 'temporary-test-password')
 
     def test_dashboard_connector_token_is_not_local_credentials(self):
         with self.assertRaises(api.APIError): api.validate_tunnel_credentials({'a': ACCOUNT, 't': TUNNEL, 's': 'connector'})

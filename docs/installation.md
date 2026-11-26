@@ -60,6 +60,8 @@ Default host-only directory: `/etc/homelab`, root-owned mode 0700:
 - `release.json`: repository, version, archive checksum and installed-file hashes.
 - `tunnel-pending.json`: protected tunnel-creation recovery material.
 
+Credential setup hashes the Authentik administrator password with the pinned image's Python password hasher, without starting PostgreSQL or the Authentik services. Password input is passed over standard input, not as a command argument. Existing saved credentials are retained when this step is retried.
+
 Credentials live under `SECRETS_ROOT`. Stack `.env` files are ignored symlinks to the selected host environment; tracked Compose files stay unchanged. Resume through the wizard. For manual maintenance, use the same environment:
 
 ```sh
