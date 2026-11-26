@@ -19,6 +19,8 @@ flowchart LR
 
 Radarr, Sonarr and qBittorrent all mount the **whole same parent** at /data. Never introduce separate /downloads and /movies bind mounts: Docker mount boundaries can break hardlink/atomic rename behavior even with the same underlying disk. Prowlarr only needs its configuration; Plex sees /data read-only. No remote path mapping should be needed with consistent container paths.
 
+The LinuxServer applications use their bundled s6 process supervisor as PID 1. Keep `init: false` for these services; Docker's additional init process prevents s6 from starting. The mount guard uses Docker init independently.
+
 ## First setup
 
 1. Claim Plex locally using its supported setup at LAN_IP:32400/web, retaining Plex authentication. Add movie library /data/media/movies and TV library /data/media/tv. Disable any automatic library-file deletion behavior you do not want. Native remote streaming is separate from Cloudflare; see [remote access](remote-access.md).

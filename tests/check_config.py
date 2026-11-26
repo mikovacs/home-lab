@@ -29,6 +29,8 @@ def _check(temporary):
             all_services[stack+'/'+name]=svc
             image=svc['image']
             assert ':' in image and not re.search(r':(latest|main|stable)$',image),image
+            if image.startswith(('lscr.io/linuxserver/', 'linuxserver/', 'ghcr.io/linuxserver/')):
+                assert svc.get('init') is False, (stack, name, 's6 must run as PID 1 without Docker init')
             assert not svc.get('privileged',False)
             assert svc.get('logging',{}).get('options',{}).get('max-size')
             for v in svc.get('volumes',[]):

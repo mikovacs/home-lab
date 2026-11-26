@@ -41,9 +41,10 @@ services:
     - ALL
     network_mode: none
     user: ${PUID}:${PGID}
+  # LinuxServer images provide s6 as PID 1; Docker init would prevent startup.
   plex:
     restart: 'no'
-    init: true
+    init: false
     stop_grace_period: 45s
     security_opt: *id001
     logging: *id002
@@ -94,7 +95,7 @@ services:
     - ${LAN_IP}:32400:32400
   radarr:
     restart: 'no'
-    init: true
+    init: false
     stop_grace_period: 45s
     security_opt: *id001
     logging: *id002
@@ -142,7 +143,7 @@ services:
       traefik.http.services.radarr.loadbalancer.server.port: '7878'
   sonarr:
     restart: 'no'
-    init: true
+    init: false
     stop_grace_period: 45s
     security_opt: *id001
     logging: *id002
@@ -190,7 +191,7 @@ services:
       traefik.http.services.sonarr.loadbalancer.server.port: '8989'
   prowlarr:
     restart: 'no'
-    init: true
+    init: false
     stop_grace_period: 45s
     security_opt: *id001
     logging: *id002
@@ -232,7 +233,7 @@ services:
       traefik.http.services.prowlarr.loadbalancer.server.port: '9696'
   qbittorrent:
     restart: 'no'
-    init: true
+    init: false
     stop_grace_period: 45s
     security_opt: *id001
     logging: *id002
@@ -284,7 +285,7 @@ services:
     - ${LAN_IP}:${TORRENT_PORT:-6881}:6881/udp
   bazarr:
     restart: 'no'
-    init: true
+    init: false
     stop_grace_period: 45s
     security_opt: *id001
     logging: *id002
