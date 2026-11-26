@@ -1,0 +1,71 @@
+name: homelab-monitoring
+services:
+  kuma:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: &id001
+    - no-new-privileges:true
+    logging: &id002
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: louislam/uptime-kuma:2.5.12
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/kuma
+      target: /app/data
+      read_only: false
+      bind:
+        create_host_path: false
+    networks:
+    - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.status.rule: Host(`status.${DOMAIN}`)
+      traefik.http.routers.status.entrypoints: websecure
+      traefik.http.routers.status.tls: 'true'
+      traefik.http.routers.status.tls.certresolver: cloudflare
+      traefik.http.routers.status.middlewares: headers@file,sso@file
+      traefik.http.services.status.loadbalancer.server.port: '3001'
+  beszel:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: henrygd/beszel:0.21.2
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/beszel
+      target: /beszel_data
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${RUNTIME_ROOT}/beszel
+      target: /beszel_socket
+      read_only: false
+      bind:
+        create_host_path: false
+    networks:
+    - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.monitor.rule: Host(`monitor.${DOMAIN}`)
+      traefik.http.routers.monitor.entrypoints: websecure
+      traefik.http.routers.monitor.tls: 'true'
+      traefik.http.routers.monitor.tls.certresolver: cloudflare
+      traefik.http.routers.monitor.middlewares: private@file,headers@file,admin-auth@file
+      traefik.http.services.monitor.loadbalancer.server.port: '8090'
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}

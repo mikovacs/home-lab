@@ -1,0 +1,7 @@
+# Copy outside the release directory for one-time local administrator creation.
+services:
+  webui:
+    env_file:
+    - path: ${SECRETS_ROOT}/webui-bootstrap.env
+      required: true
+      format: raw

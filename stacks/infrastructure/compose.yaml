@@ -1,0 +1,205 @@
+name: homelab-infrastructure
+services:
+  socket-proxy:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: &id001
+    - no-new-privileges:true
+    logging: &id002
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    environment:
+      CONTAINERS: '1'
+      EVENTS: '1'
+      NETWORKS: '1'
+      PING: '1'
+      VERSION: '1'
+      POST: '0'
+    volumes:
+    - type: bind
+      source: /var/run/docker.sock
+      target: /var/run/docker.sock
+      read_only: true
+      bind:
+        create_host_path: false
+    networks:
+    - discovery
+    read_only: true
+    tmpfs:
+    - /run
+    - /tmp
+    cap_drop:
+    - ALL
+  traefik:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: traefik:v3.8.0
+    command:
+    - --providers.docker.endpoint=tcp://socket-proxy:2375
+    - --providers.docker.exposedbydefault=false
+    - --providers.docker.network=${PROXY_NETWORK}
+    - --providers.file.directory=/etc/traefik/dynamic
+    - --providers.file.watch=true
+    - --entrypoints.web.address=:80
+    - --entrypoints.web.http.redirections.entrypoint.to=websecure
+    - --entrypoints.web.http.redirections.entrypoint.scheme=https
+    - --entrypoints.websecure.address=:443
+    - --entrypoints.tunnel.address=:8443
+    - --entrypoints.tunnel.http.tls=true
+    - --entrypoints.websecure.forwardedheaders.insecure=false
+    - --entrypoints.tunnel.forwardedheaders.insecure=false
+    - --api.dashboard=true
+    - --ping=true
+    - --accesslog=true
+    - --accesslog.fields.headers.defaultmode=drop
+    - --certificatesresolvers.cloudflare.acme.email=${ACME_EMAIL}
+    - --certificatesresolvers.cloudflare.acme.storage=/acme/acme.json
+    - --certificatesresolvers.cloudflare.acme.caserver=${ACME_SERVER}
+    - --certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare
+    environment:
+      CF_DNS_API_TOKEN_FILE: /run/secrets/cloudflare-dns-token
+    secrets:
+    - cloudflare-dns-token
+    - admin-htpasswd
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/traefik
+      target: /acme
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${RUNTIME_ROOT}/traefik
+      target: /etc/traefik/dynamic
+      read_only: true
+      bind:
+        create_host_path: false
+    ports:
+    - ${LAN_IP}:80:80
+    - ${LAN_IP}:443:443
+    networks:
+    - proxy
+    - discovery
+    - tunnel
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
+    cap_add:
+    - NET_BIND_SERVICE
+    healthcheck:
+      test:
+      - CMD
+      - traefik
+      - healthcheck
+      - --ping
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.traefik.rule: Host(`traefik.${DOMAIN}`)
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.tls: 'true'
+      traefik.http.routers.traefik.tls.certresolver: cloudflare
+      traefik.http.routers.traefik.middlewares: private@file,headers@file,admin-auth@file
+      traefik.http.services.traefik.loadbalancer.server.port: '8080'
+      traefik.http.routers.traefik.service: api@internal
+  adguard:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: adguard/adguardhome:v1.0.0
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/adguard-conf
+      target: /opt/adguardhome/conf
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${APPDATA_ROOT}/adguard-work
+      target: /opt/adguardhome/work
+      read_only: false
+      bind:
+        create_host_path: false
+    ports:
+    - ${LAN_IP}:53:53/tcp
+    - ${LAN_IP}:53:53/udp
+    - 127.0.0.1:3001:3000
+    networks:
+    - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.adguard.rule: Host(`adguard.${DOMAIN}`)
+      traefik.http.routers.adguard.entrypoints: websecure
+      traefik.http.routers.adguard.tls: 'true'
+      traefik.http.routers.adguard.tls.certresolver: cloudflare
+      traefik.http.routers.adguard.middlewares: private@file,headers@file,admin-auth@file
+      traefik.http.services.adguard.loadbalancer.server.port: '3000'
+  cloudflared:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: cloudflare/cloudflared:2026.11.2
+    profiles:
+    - tunnel
+    command:
+    - tunnel
+    - --no-autoupdate
+    - --config
+    - /etc/cloudflared/config.yml
+    - run
+    volumes:
+    - type: bind
+      source: ${RUNTIME_ROOT}/cloudflared.yml
+      target: /etc/cloudflared/config.yml
+      read_only: true
+      bind:
+        create_host_path: false
+    secrets:
+    - tunnel-credentials
+    networks:
+    - tunnel
+    read_only: true
+    cap_drop:
+    - ALL
+    user: 65532:65532
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}
+  discovery:
+    internal: true
+  tunnel:
+    external: true
+    name: ${TUNNEL_NETWORK}
+secrets:
+  cloudflare-dns-token:
+    file: ${SECRETS_ROOT}/cloudflare-dns-token
+  admin-htpasswd:
+    file: ${SECRETS_ROOT}/admin-htpasswd
+  tunnel-credentials:
+    file: ${SECRETS_ROOT}/tunnel-credentials

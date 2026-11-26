@@ -1,0 +1,1 @@
+Follow AGENTS.md for architecture, storage preservation and verification. Use install.sh as the public entrypoint, shared Python implementations in scripts/lib, one outside-Git host environment, and the repository Compose files. Preserve explicit mount/exposure/update safeguards; test devices, accounts and provider APIs with mocks rather than mutating a real HomeLab.

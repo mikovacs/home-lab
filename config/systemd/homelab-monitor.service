@@ -1,0 +1,9 @@
+[Unit]
+Description=HomeLab mount, disk, SMART and backup status
+After=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO_ROOT@
+ExecStart=/usr/bin/python3 @REPO_ROOT@/scripts/lib/monitor.py
+TimeoutStartSec=2m
+UMask=0077

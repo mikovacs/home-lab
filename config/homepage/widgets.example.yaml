@@ -1,0 +1,23 @@
+# Fragments only. Place secrets in protected Homepage-supported env/file substitutions.
+# Add one widget to the corresponding rendered service entry; never commit tokens.
+plex:
+  type: plex
+  url: http://plex:32400
+  key: '{{HOMEPAGE_VAR_PLEX_TOKEN}}'
+radarr:
+  type: radarr
+  url: http://radarr:7878
+  key: '{{HOMEPAGE_VAR_RADARR_KEY}}'
+sonarr:
+  type: sonarr
+  url: http://sonarr:8989
+  key: '{{HOMEPAGE_VAR_SONARR_KEY}}'
+qbittorrent:
+  type: qbittorrent
+  url: http://qbittorrent:8080
+  username: '{{HOMEPAGE_VAR_TORRENT_USER}}'
+  password: '{{HOMEPAGE_VAR_TORRENT_PASSWORD}}'
+uptimekuma:
+  type: uptimekuma
+  url: http://kuma:3001
+  slug: homelab

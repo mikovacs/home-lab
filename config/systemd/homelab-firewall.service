@@ -1,0 +1,12 @@
+[Unit]
+Description=HomeLab Docker-compatible firewall
+After=docker.service network-online.target
+Requires=docker.service
+PartOf=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@REPO_ROOT@
+ExecStart=/usr/bin/python3 @REPO_ROOT@/scripts/lib/firewall.py --apply
+[Install]
+WantedBy=multi-user.target docker.service

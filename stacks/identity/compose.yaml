@@ -1,0 +1,139 @@
+name: homelab-identity
+services:
+  server:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: &id001
+    - no-new-privileges:true
+    logging: &id002
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: ${AUTHENTIK_MEMORY:-1g}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: ghcr.io/goauthentik/server:2026.8.7
+    command: server
+    environment: &id003
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: file:///run/secrets/authentik-db-password
+      AUTHENTIK_SECRET_KEY: file:///run/secrets/authentik-secret-key
+      AUTHENTIK_ERROR_REPORTING__ENABLED: 'false'
+      AUTHENTIK_WEB__BASE_URL: https://auth.${DOMAIN}
+    secrets:
+    - authentik-db-password
+    - authentik-secret-key
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/authentik-data
+      target: /data
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${APPDATA_ROOT}/authentik-templates
+      target: /templates
+      read_only: false
+      bind:
+        create_host_path: false
+    networks:
+    - db
+    - proxy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    shm_size: 256mb
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.auth.rule: Host(`auth.${DOMAIN}`)
+      traefik.http.routers.auth.entrypoints: websecure
+      traefik.http.routers.auth.tls: 'true'
+      traefik.http.routers.auth.tls.certresolver: cloudflare
+      traefik.http.routers.auth.middlewares: headers@file
+      traefik.http.services.auth.loadbalancer.server.port: '9000'
+    ports:
+    - 127.0.0.1:9000:9000
+  worker:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${AUTHENTIK_MEMORY:-1g}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: ghcr.io/goauthentik/server:2026.8.7
+    command: worker
+    environment: *id003
+    secrets:
+    - authentik-db-password
+    - authentik-secret-key
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/authentik-data
+      target: /data
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${APPDATA_ROOT}/authentik-templates
+      target: /templates
+      read_only: false
+      bind:
+        create_host_path: false
+    networks:
+    - db
+    - egress
+    depends_on:
+      postgres:
+        condition: service_healthy
+    shm_size: 256mb
+    env_file:
+    - path: ${SECRETS_ROOT}/authentik-bootstrap.env
+      required: false
+  postgres:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${POSTGRES_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: postgres:17.7-alpine3.23
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD_FILE: /run/secrets/authentik-db-password
+    secrets:
+    - authentik-db-password
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/authentik-postgres
+      target: /var/lib/postgresql/data
+      read_only: false
+      bind:
+        create_host_path: false
+    networks:
+    - db
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U authentik -d authentik
+      interval: 10s
+      timeout: 5s
+      retries: 10
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}
+  db:
+    internal: true
+  egress: {}
+secrets:
+  authentik-db-password:
+    file: ${SECRETS_ROOT}/authentik-db-password
+  authentik-secret-key:
+    file: ${SECRETS_ROOT}/authentik-secret-key

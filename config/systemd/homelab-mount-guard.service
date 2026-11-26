@@ -1,0 +1,10 @@
+[Unit]
+Description=Stop storage consumers when a verified mount disappears
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO_ROOT@
+ExecStart=/usr/bin/python3 @REPO_ROOT@/scripts/lib/homelab.py guard
+# Four affected stacks can each need their 45-second graceful stop window.
+TimeoutStartSec=5m

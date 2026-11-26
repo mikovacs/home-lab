@@ -1,0 +1,21 @@
+# Local host configuration and secrets
+.env
+stacks/*/.env
+.env.*
+!.env.example
+secrets/
+appdata/
+runtime/
+*.key
+*.pem
+*.sql
+*.dump
+*.log
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+
+# Generated release assets
+release-assets/
+dist/

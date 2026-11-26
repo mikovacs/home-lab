@@ -1,0 +1,119 @@
+name: homelab-storage
+services:
+  files:
+    restart: 'no'
+    init: true
+    stop_grace_period: 45s
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: gtstef/filebrowser:2.1.0-stable-slim
+    user: ${PUID}:${PGID}
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/files
+      target: /home/filebrowser/data
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${DATA_ROOT}/files
+      target: /srv/personal
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${DATA_ROOT}/shared
+      target: /srv/shared
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${RUNTIME_ROOT}/files.yaml
+      target: /home/filebrowser/data/config.yaml
+      read_only: true
+      bind:
+        create_host_path: false
+    networks:
+    - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.files.rule: Host(`files.${DOMAIN}`)
+      traefik.http.routers.files.entrypoints: websecure
+      traefik.http.routers.files.tls: 'true'
+      traefik.http.routers.files.tls.certresolver: cloudflare
+      traefik.http.routers.files.middlewares: headers@file
+      traefik.http.services.files.loadbalancer.server.port: '8080'
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
+    environment:
+      FILEBROWSER_CONFIG: /home/filebrowser/data/config.yaml
+    depends_on:
+      data-guard:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8080/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  data-guard:
+    restart: 'no'
+    init: true
+    stop_grace_period: 45s
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: 32m
+    cpus: '0.1'
+    image: python:3.13.11-alpine3.23
+    command:
+    - python
+    - /guard.py
+    volumes:
+    - type: bind
+      source: ${REPO_ROOT}/scripts/lib/mount_guard.py
+      target: /guard.py
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${DATA_ROOT}
+      target: /data
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /dev/disk/by-uuid/${DATA_UUID}
+      target: /expected-device
+      read_only: true
+      bind:
+        create_host_path: false
+    read_only: true
+    cap_drop:
+    - ALL
+    network_mode: none
+    environment:
+      GUARD_KIND: data
+    user: ${PUID}:${PGID}
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}

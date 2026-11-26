@@ -1,0 +1,67 @@
+name: homelab-remote-access
+services:
+  terminal:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: homelab-terminal:1.0.0
+    build:
+      context: ${REPO_ROOT}/stacks/remote-access/terminal
+    user: 1000:1000
+    command:
+    - ttyd
+    - --writable
+    - --port
+    - '7681'
+    - ssh
+    - -F
+    - /etc/ssh/homelab_config
+    - ${ADMIN_SSH_USER}@${ADMIN_SSH_HOST}
+    volumes:
+    - type: bind
+      source: ${SECRETS_ROOT}/terminal-ssh
+      target: /home/terminal/.ssh
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${REPO_ROOT}/stacks/remote-access/ssh_config
+      target: /etc/ssh/homelab_config
+      read_only: true
+      bind:
+        create_host_path: false
+    networks:
+      proxy: {}
+      hostssh:
+        gw_priority: 1
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.terminal.rule: Host(`terminal.${DOMAIN}`)
+      traefik.http.routers.terminal.entrypoints: websecure
+      traefik.http.routers.terminal.tls: 'true'
+      traefik.http.routers.terminal.tls.certresolver: cloudflare
+      traefik.http.routers.terminal.middlewares: private@file,headers@file,admin-auth@file
+      traefik.http.services.terminal.loadbalancer.server.port: '7681'
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}
+  hostssh:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: ${TERMINAL_BRIDGE}

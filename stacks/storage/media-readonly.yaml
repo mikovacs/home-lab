@@ -1,0 +1,22 @@
+services:
+  files:
+    depends_on:
+      mount-guard:
+        condition: service_completed_successfully
+    volumes:
+    - type: bind
+      source: ${MEDIA_ROOT}/media
+      target: /srv/media
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /dev/disk/by-uuid/${MEDIA_UUID}
+      target: /run/expected-media-device
+      read_only: true
+      bind:
+        create_host_path: false
+  mount-guard:
+    extends:
+      file: ../media/compose.yaml
+      service: mount-guard

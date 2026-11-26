@@ -1,0 +1,14 @@
+[Unit]
+Description=Application-consistent encrypted HomeLab backup
+Requires=docker.service
+After=docker.service
+RequiresMountsFor=@DATA_ROOT@ @APPDATA_ROOT@
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO_ROOT@
+ExecStart=/usr/bin/python3 @REPO_ROOT@/scripts/lib/homelab.py backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=6h
+UMask=0077

@@ -1,0 +1,160 @@
+name: homelab-management
+services:
+  homepage:
+    restart: 'no'
+    init: true
+    stop_grace_period: 45s
+    security_opt: &id001
+    - no-new-privileges:true
+    logging: &id002
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: ghcr.io/gethomepage/homepage:v2.8.0
+    user: ${PUID}:${PGID}
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.${DOMAIN}
+    volumes:
+    - type: bind
+      source: ${RUNTIME_ROOT}/homepage
+      target: /app/config
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${DATA_ROOT}/.usage
+      target: /storage
+      read_only: true
+      bind:
+        create_host_path: false
+    networks:
+    - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.home.rule: Host(`home.${DOMAIN}`)
+      traefik.http.routers.home.entrypoints: websecure
+      traefik.http.routers.home.tls: 'true'
+      traefik.http.routers.home.tls.certresolver: cloudflare
+      traefik.http.routers.home.middlewares: headers@file,sso@file
+      traefik.http.services.home.loadbalancer.server.port: '3000'
+    depends_on:
+      data-guard:
+        condition: service_completed_successfully
+  dockge:
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    security_opt: *id001
+    logging: *id002
+    mem_limit: ${SERVICE_MEMORY:-512m}
+    cpus: ${SERVICE_CPUS:-1.0}
+    image: louislam/dockge:1.5.0
+    profiles:
+    - admin
+    environment:
+      DOCKGE_STACKS_DIR: ${REPO_ROOT}/stacks
+    volumes:
+    - type: bind
+      source: ${APPDATA_ROOT}/dockge
+      target: /app/data
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${REPO_ROOT}
+      target: ${REPO_ROOT}
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${APPDATA_ROOT}
+      target: ${APPDATA_ROOT}
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${RUNTIME_ROOT}
+      target: ${RUNTIME_ROOT}
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${SECRETS_ROOT}
+      target: ${SECRETS_ROOT}
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /var/run/docker.sock
+      target: /var/run/docker.sock
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${HOMELAB_CONFIG_DIR:-/etc/homelab}
+      target: ${HOMELAB_CONFIG_DIR:-/etc/homelab}
+      read_only: true
+      bind:
+        create_host_path: false
+    networks:
+    - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${PROXY_NETWORK}
+      traefik.http.routers.docker.rule: Host(`docker.${DOMAIN}`)
+      traefik.http.routers.docker.entrypoints: websecure
+      traefik.http.routers.docker.tls: 'true'
+      traefik.http.routers.docker.tls.certresolver: cloudflare
+      traefik.http.routers.docker.middlewares: private@file,headers@file,admin-auth@file
+      traefik.http.services.docker.loadbalancer.server.port: '5001'
+  data-guard:
+    restart: 'no'
+    init: true
+    stop_grace_period: 45s
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: 32m
+    cpus: '0.1'
+    image: python:3.13.11-alpine3.23
+    command:
+    - python
+    - /guard.py
+    volumes:
+    - type: bind
+      source: ${REPO_ROOT}/scripts/lib/mount_guard.py
+      target: /guard.py
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${DATA_ROOT}
+      target: /data
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /dev/disk/by-uuid/${DATA_UUID}
+      target: /expected-device
+      read_only: true
+      bind:
+        create_host_path: false
+    read_only: true
+    cap_drop:
+    - ALL
+    network_mode: none
+    environment:
+      GUARD_KIND: data
+    user: ${PUID}:${PGID}
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}
