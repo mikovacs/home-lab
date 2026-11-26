@@ -49,6 +49,10 @@ def _check(temporary):
             assert not obj['services']['socket-proxy'].get('ports')
             assert obj['services']['socket-proxy']['environment']['POST']=='0'
             assert '--providers.docker.exposedbydefault=false' in obj['services']['traefik']['command']
+            networks = obj['services']['traefik']['networks']
+            assert networks['proxy']['aliases'] == ['auth.' + c['DOMAIN']]
+            assert not networks['discovery'].get('aliases')
+            assert not networks['tunnel'].get('aliases')
             assert obj['services']['cloudflared']['profiles']==['tunnel']
         if stack=='management':assert obj['services']['dockge']['profiles']==['admin']
     for workflow in (root/'config/n8n/workflows').glob('*.json'):

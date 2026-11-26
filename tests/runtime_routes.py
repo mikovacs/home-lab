@@ -39,9 +39,19 @@ def main():
             (base / path).mkdir()
         h.render(c)
         env = dict(os.environ, **h.config(example=True))
+        env['DOMAIN'] = c['DOMAIN']
         config = json.loads(subprocess.check_output(['docker', 'compose', '--env-file', str(ROOT / '.env.example'),
             '-f', str(ROOT / 'stacks/infrastructure/compose.yaml'), 'config', '--format', 'json'], env=env, text=True))
         image = config['services']['traefik']['image']
+        auth_alias, = config['services']['traefik']['networks']['proxy']['aliases']
+        # The production local router comes from Docker labels. Use an equivalent
+        # file router in this isolated test without granting Docker socket access.
+        (base / 'traefik' / 'local-test.yml').write_text(json.dumps({'http': {
+            'routers': {'local-auth-test': {
+                'rule': 'Host(`' + auth_alias + '`)', 'entryPoints': ['websecure'],
+                'service': 'local-auth-test', 'tls': {}}},
+            'services': {'local-auth-test': {'loadBalancer': {
+                'servers': [{'url': 'http://server:9000'}]}}}}}))
         guard = json.loads(subprocess.check_output(['docker', 'compose', '--env-file', str(ROOT / '.env.example'),
             '-f', str(ROOT / 'stacks/storage/compose.yaml'), 'config', '--format', 'json'], env=env, text=True))
         python_image = guard['services']['data-guard']['image']
@@ -62,9 +72,11 @@ def main():
                    '--memory', '64m', '--read-only', '--cap-drop', 'ALL', python_image, 'python', '-c', stub)
             created.append(name + '-origin'); docker('start', created[-1])
             docker('create', '--name', name + '-proxy', '--network', name,
+                   '--network-alias', auth_alias,
                    '--publish', '127.0.0.1::8443', '--memory', '256m', '--read-only', '--cap-drop', 'ALL',
                    '--mount', 'type=bind,src=' + str(base / 'traefik') + ',dst=/dynamic,readonly', image,
-                   '--entrypoints.tunnel.address=:8443', '--providers.file.directory=/dynamic', '--providers.file.watch=true')
+                   '--entrypoints.tunnel.address=:8443', '--entrypoints.websecure.address=:443',
+                   '--providers.file.directory=/dynamic', '--providers.file.watch=true')
             created.append(name + '-proxy'); docker('start', created[-1])
             port = int(docker('port', created[-1], '8443/tcp').rsplit(':', 1)[1])
             # The test has no ACME account and intentionally uses Traefik's self-signed cert.
@@ -90,6 +102,15 @@ def main():
                 raise AssertionError((host, wanted, 'timeout'))
 
             wait_status('auth.audit.test', 204)
+            # Resolve the public-style hostname through Docker DNS from a peer,
+            # then reach the local HTTPS router without a hosts-file override.
+            proxy_ip = json.loads(docker('inspect', name + '-proxy'))[0]['NetworkSettings']['Networks'][name]['IPAddress']
+            probe = ('import socket,ssl,urllib.request\n'
+                     'host=' + repr(auth_alias) + '\n'
+                     'assert socket.gethostbyname(host)==' + repr(proxy_ip) + '\n'
+                     'with urllib.request.urlopen("https://"+host+"/application/o/test/.well-known/openid-configuration",'
+                     'context=ssl._create_unverified_context(),timeout=5) as r: assert r.status==204\n')
+            docker('exec', name + '-origin', 'python', '-c', probe)
             for host in ('auth.audit.test', 'AUTH.audit.test', 'auth.audit.test.', 'auth.audit.test:443'):
                 assert status(host) == 204, host
             for host in ('docker.audit.test', 'terminal.audit.test', 'traefik.audit.test', 'adguard.audit.test',
@@ -105,7 +126,8 @@ def main():
             wait_status('auth.audit.test', 404)
             assert status('hooks.audit.test', '/webhook/probe') == 404
             assert status('home.audit.test', '/outpost.goauthentik.io/ping') == 404
-            print('PASS: real Traefik host/path boundaries and atomic remote disable; origins are stubs.')
+            docker('exec', name + '-origin', 'python', '-c', probe)
+            print('PASS: local identity DNS/HTTPS, Traefik host/path boundaries and atomic remote disable; origins are stubs.')
         finally:
             for container in reversed(created):
                 subprocess.run(['docker', 'rm', '-f', container], check=True, stdout=subprocess.DEVNULL)

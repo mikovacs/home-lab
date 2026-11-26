@@ -89,9 +89,11 @@ services:
     - ${LAN_IP}:80:80
     - ${LAN_IP}:443:443
     networks:
-    - proxy
-    - discovery
-    - tunnel
+      proxy:
+        aliases:
+        - auth.${DOMAIN}
+      discovery: {}
+      tunnel: {}
     read_only: true
     tmpfs:
     - /tmp
