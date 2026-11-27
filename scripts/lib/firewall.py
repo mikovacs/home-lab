@@ -49,7 +49,8 @@ for binary in ('iptables','ip6tables'):
             rule('-A','HL-DOCKER','-s',lan,'-p',proto,'-m','multiport','--dports',ports,'-j','RETURN')
         for cidr in admins:
             if ':' not in cidr:
-                rule('-A','HL-DOCKER','-s',cidr,'-p','tcp','-m','multiport','--dports','80,443,32400','-j','RETURN')
+                rule('-A','HL-DOCKER','-s',cidr,'-p','tcp','-m','multiport','--dports','53,80,443,32400','-j','RETURN')
+                rule('-A','HL-DOCKER','-s',cidr,'-p','udp','--dport','53','-j','RETURN')
     rule('-A','HL-DOCKER','-j','DROP')
     def ensure_jump(parent, args):
         import subprocess

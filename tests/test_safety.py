@@ -222,6 +222,42 @@ class SafetyTests(unittest.TestCase):
                     runpy.run_path(str(h.ROOT/'scripts/lib/firewall.py'))
             run.assert_not_called()
 
+    def test_firewall_admin_split_dns_is_limited_to_configured_sources(self):
+        import ipaddress
+        import runpy
+        c={**self.c,'LAN_INTERFACE':'eth0','LAN_CIDR':'10.2.3.0/24',
+           'ADMIN_CIDRS':'10.2.3.0/24,100.103.106.42/32'}
+        with patch.object(h,'config',return_value=c),patch.object(h,'run') as run, \
+             patch.object(sys,'argv',['firewall','--dry-run']),contextlib.redirect_stdout(io.StringIO()):
+            runpy.run_path(str(h.ROOT/'scripts/lib/firewall.py'))
+        commands=[call.args[0] for call in run.call_args_list]
+        rules=[cmd[4:] for cmd in commands if cmd[:4]==['iptables','-w','-A','HL-DOCKER']]
+
+        def verdict(source, protocol, port):
+            for rule in rules:
+                if '-s' in rule and ipaddress.ip_address(source) not in ipaddress.ip_network(rule[rule.index('-s')+1]):
+                    continue
+                if '-p' in rule and rule[rule.index('-p')+1]!=protocol:
+                    continue
+                option=next((x for x in ('--dport','--dports') if x in rule),None)
+                if option and str(port) not in rule[rule.index(option)+1].split(','):
+                    continue
+                return rule[rule.index('-j')+1]
+            self.fail('Published-port rules must have a terminal verdict')
+
+        for protocol in ('tcp','udp'):
+            for source,expected in [('10.2.3.20','RETURN'),('100.103.106.42','RETURN'),
+                                    ('100.103.106.43','DROP'),('198.51.100.20','DROP')]:
+                with self.subTest(protocol=protocol,source=source):
+                    self.assertEqual(verdict(source,protocol,53),expected)
+        for protocol,port in [('tcp',443),('tcp',32400)]:
+            self.assertEqual(verdict('100.103.106.42',protocol,port),'RETURN')
+        for protocol,port in [('udp',443),('tcp',5432),('tcp',2375),('udp',6881)]:
+            self.assertEqual(verdict('100.103.106.42',protocol,port),'DROP')
+        jump=next(cmd for cmd in commands if cmd[:4]==['iptables','-w','-I','DOCKER-USER'])
+        self.assertEqual(jump[jump.index('--ctorigdst')+1],c['LAN_IP'])
+        self.assertEqual(jump[jump.index('--ctstate')+1],'NEW')
+
     def test_mount_guard_stops_on_failure(self):
         with patch.object(h,'check_media',side_effect=h.SafetyError('missing')),patch.object(h,'mounted'),patch.object(h,'compose') as compose:
             with self.assertRaises(h.SafetyError):h.guard(self.c)
