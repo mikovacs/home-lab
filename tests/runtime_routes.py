@@ -55,14 +55,32 @@ def main():
         guard = json.loads(subprocess.check_output(['docker', 'compose', '--env-file', str(ROOT / '.env.example'),
             '-f', str(ROOT / 'stacks/storage/compose.yaml'), 'config', '--format', 'json'], env=env, text=True))
         python_image = guard['services']['data-guard']['image']
+        monitoring = json.loads(subprocess.check_output(['docker', 'compose', '--env-file', str(ROOT / '.env.example'),
+            '-f', str(ROOT / 'stacks/monitoring/compose.yaml'), 'config', '--format', 'json'], env=env, text=True))
+        monitor_middlewares = monitoring['services']['beszel']['labels']['traefik.http.routers.monitor.middlewares'].split(',')
+        (base / 'traefik' / 'beszel-test.yml').write_text(json.dumps({'http': {
+            'routers': {'beszel-test': {'rule': 'Host(`monitor.audit.test`)',
+                'entryPoints': ['websecure'], 'tls': {}, 'service': 'beszel-test',
+                'middlewares': monitor_middlewares}},
+            'services': {'beszel-test': {'loadBalancer': {'servers': [{'url': 'http://server:8090'}]}}}}}))
         try:
             docker('network', 'create', name); network = True
+            subnet = json.loads(docker('network', 'inspect', name))[0]['IPAM']['Config'][0]['Subnet']
+            c['ADMIN_CIDRS'] = subnet
+            h.render(c)
             stub = ('from http.server import HTTPServer,BaseHTTPRequestHandler\n'
                     'from threading import Thread\n'
                     'class Handler(BaseHTTPRequestHandler):\n'
-                    ' def do_GET(self): self.send_response(204); self.end_headers()\n'
+                    ' def do_GET(self):\n'
+                    '  code=204\n'
+                    '  if self.server.server_port==8090:\n'
+                    '   code=204 if self.headers.get("Authorization")=="audit-native-token" else 401\n'
+                    '  elif self.path.startswith("/outpost.goauthentik.io/auth/") and self.headers.get("X-Forwarded-Host","").startswith("monitor."):\n'
+                    '   code=204 if self.headers.get("Cookie")=="audit-session=allowed" else 401\n'
+                    '   if self.headers.get("Authorization"): code=418\n'
+                    '  self.send_response(code); self.end_headers()\n'
                     ' def log_message(self,*args): pass\n'
-                    'for port in (9000,5678,3000):\n'
+                    'for port in (9000,5678,3000,8090):\n'
                     ' Thread(target=HTTPServer(("0.0.0.0",port),Handler).serve_forever,daemon=True).start()\n'
                     'Thread().join()\n')
             # Keep the process alive without sending any external requests.
@@ -73,17 +91,19 @@ def main():
             created.append(name + '-origin'); docker('start', created[-1])
             docker('create', '--name', name + '-proxy', '--network', name,
                    '--network-alias', auth_alias,
-                   '--publish', '127.0.0.1::8443', '--memory', '256m', '--read-only', '--cap-drop', 'ALL',
+                   '--publish', '127.0.0.1::8443', '--publish', '127.0.0.1::443',
+                   '--memory', '256m', '--read-only', '--cap-drop', 'ALL',
                    '--mount', 'type=bind,src=' + str(base / 'traefik') + ',dst=/dynamic,readonly', image,
                    '--entrypoints.tunnel.address=:8443', '--entrypoints.websecure.address=:443',
                    '--providers.file.directory=/dynamic', '--providers.file.watch=true')
             created.append(name + '-proxy'); docker('start', created[-1])
             port = int(docker('port', created[-1], '8443/tcp').rsplit(':', 1)[1])
+            local_port = int(docker('port', created[-1], '443/tcp').rsplit(':', 1)[1])
             # The test has no ACME account and intentionally uses Traefik's self-signed cert.
             context = ssl._create_unverified_context()
 
-            def status(host, path='/', extra=None):
-                connection = http.client.HTTPSConnection('127.0.0.1', port, context=context, timeout=5)
+            def status(host, path='/', extra=None, target_port=None):
+                connection = http.client.HTTPSConnection('127.0.0.1', target_port or port, context=context, timeout=5)
                 try:
                     connection.request('GET', path, headers={'Host': host, **(extra or {})})
                     response = connection.getresponse(); response.read()
@@ -102,6 +122,12 @@ def main():
                 raise AssertionError((host, wanted, 'timeout'))
 
             wait_status('auth.audit.test', 204)
+            native = {'Authorization': 'audit-native-token'}
+            session = {'Cookie': 'audit-session=allowed'}
+            assert status('monitor.audit.test', '/api/beszel/getkey', native, local_port) == 401
+            assert status('monitor.audit.test', '/api/beszel/getkey', session, local_port) == 401
+            assert status('monitor.audit.test', '/api/beszel/getkey', {**native, **session}, local_port) == 204
+            assert status('monitor.audit.test', '/outpost.goauthentik.io/callback', target_port=local_port) == 204
             # Resolve the public-style hostname through Docker DNS from a peer,
             # then reach the local HTTPS router without a hosts-file override.
             proxy_ip = json.loads(docker('inspect', name + '-proxy'))[0]['NetworkSettings']['Networks'][name]['IPAddress']
@@ -127,6 +153,13 @@ def main():
             assert status('hooks.audit.test', '/webhook/probe') == 404
             assert status('home.audit.test', '/outpost.goauthentik.io/ping') == 404
             docker('exec', name + '-origin', 'python', '-c', probe)
+            c['ADMIN_CIDRS'] = '192.0.2.1/32'; h.render(c)
+            deadline = time.monotonic() + 15
+            while status('monitor.audit.test', extra={**native, **session}, target_port=local_port) != 403:
+                if time.monotonic() >= deadline: raise AssertionError('Private Beszel source restriction not applied')
+                time.sleep(0.2)
+            assert status('monitor.audit.test', '/outpost.goauthentik.io/callback',
+                          {'X-Forwarded-For': '192.0.2.1'}, local_port) == 403
             print('PASS: local identity DNS/HTTPS, Traefik host/path boundaries and atomic remote disable; origins are stubs.')
         finally:
             for container in reversed(created):

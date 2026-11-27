@@ -297,6 +297,11 @@ def render(c):
                    'sso':{'forwardAuth':{'address':'http://server:9000/outpost.goauthentik.io/auth/traefik',
                                         'trustForwardHeader':False,'authResponseHeaders':['X-authentik-username','X-authentik-email','X-authentik-groups']}}}
     # Alias server resolves only on shared proxy network; no public/internal API catch-all bypass.
+    # PocketBase uses Authorization for its native token. Authenticate the proxy
+    # session using cookies only; leave the original token untouched for Beszel.
+    middlewares['beszel-sso']={'forwardAuth':{
+        'address':'http://server:9000/outpost.goauthentik.io/auth/traefik',
+        'trustForwardHeader':False,'authRequestHeaders':['Cookie']}}
     dynamic = {'http':{'middlewares':middlewares,'routers':{},'services':{}}}
     allowed = {'auth':('http://server:9000',[]),'home':('http://homepage:3000',['sso@file']),
                'files':('http://files:8080',[]),'radarr':('http://radarr:7878',['sso@file']),
@@ -323,6 +328,12 @@ def render(c):
     # Authentik embedded outpost callback must reach Authentik for every protected host.
     dynamic['http']['routers']['outpost']={'entryPoints':['websecure'],'rule':'HostRegexp(`^.+\\.'+re.escape(c['DOMAIN'])+'$`) && PathPrefix(`/outpost.goauthentik.io/`)','priority':1000,'tls':{'certResolver':'cloudflare'},'service':'outpost'}
     dynamic['http']['services']['outpost']={'loadBalancer':{'servers':[{'url':'http://server:9000'}]}}
+    # This higher-priority route also restricts Beszel callbacks to admin sources.
+    dynamic['http']['routers']['beszel-outpost']={
+        'entryPoints':['websecure'],
+        'rule':'Host(`monitor.'+c['DOMAIN']+'`) && PathPrefix(`/outpost.goauthentik.io/`)',
+        'priority':1100,'tls':{'certResolver':'cloudflare'},'service':'outpost',
+        'middlewares':['private@file','headers@file']}
     remote_sso=[name for name in remote if 'sso@file' in allowed[name][1]]
     if remote_sso:
         dynamic['http']['routers']['remote-outpost']={'entryPoints':['tunnel'],'rule':'('+ ' || '.join('Host(`'+x+'.'+c['DOMAIN']+'`)' for x in remote_sso)+') && PathPrefix(`/outpost.goauthentik.io/`)','priority':1000,'tls':{},'service':'outpost'}

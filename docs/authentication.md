@@ -17,12 +17,15 @@ Enroll your MFA device, retain offline recovery material, create a named adminis
 | n8n production webhooks | Workflow authentication; no interactive SSO |
 | Open WebUI | Native accounts plus `ai-users`/admin ForwardAuth |
 | Kuma | `homelab-users`/admin ForwardAuth plus native owner |
-| Dockge, Beszel, Traefik, AdGuard, terminal | Private source restriction and independent basic auth; native login where applicable |
+| Beszel | Private source restriction, admin-group ForwardAuth and native login |
+| Dockge, Traefik, AdGuard, terminal | Private source restriction and independent basic auth; native login where applicable |
 | PostgreSQL, Ollama | Internal networking; no public route |
 
 The `media-users` group is created but not automatically granted media-administration access. File-manager permissions are separate from ForwardAuth groups. Create native owners locally before remote publication.
 
 ForwardAuth uses Authentik's embedded outpost at `server:9000`, with exact external hostnames and dedicated callback routes. APIs are not globally exempted. Internal clients use Docker service names and native API keys. Use private access or a separately reviewed authenticated route for external API clients.
+
+Beszel's PocketBase API uses `Authorization` for its native token, which conflicts with HTTP Basic authentication. Its dedicated `beszel-sso` middleware sends only cookies to Authentik (plus Traefik's generated forwarded request metadata) and preserves the original authorization header for Beszel. The `homelab-monitor` application permits only `homelab-admins`. Both the application and its outpost callback are source-restricted; neither is available through the tunnel. See [ADR 0002](decisions/0002-beszel-authentication.md).
 
 ## Optional native OIDC
 

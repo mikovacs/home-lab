@@ -344,15 +344,19 @@ class IdentityAPITests(unittest.TestCase):
         groups = api.authentik(client, 'lab.test')
         self.assertEqual(len(groups), 5)
         providers = [data for method, path, data in calls if path == '/providers/proxy/']
-        self.assertEqual(len(providers), 9)
+        self.assertEqual(len(providers), 10)
         self.assertTrue(all(p['mode'] == 'forward_single' and p['skip_path_regex'] == '' for p in providers))
         bindings = [data for method, path, data in calls if path == '/policies/bindings/']
         self.assertTrue(all(b['enabled'] and b['group'] and not b.get('policy') for b in bindings))
+        monitor = next(p for p in providers if p['external_host'] == 'https://monitor.lab.test')
+        self.assertFalse(monitor['intercept_header_auth'])
+        self.assertEqual([b['group'] for b in bindings if b['target'] == 'homelab-monitor'],
+                         ['homelab-admins'])
         self.assertIn(('PATCH', '/stages/authenticator/validate/mfa/', {'not_configured_action': 'configure', 'configuration_stages': ['totp-enrollment'], 'device_classes': ['totp', 'webauthn', 'static']}), calls)
         self.assertIn(('PATCH', '/core/users/1/', {'groups': ['builtin-admins', 'homelab-admins']}), calls)
         outpost = next(data for method, path, data in calls if path == '/outposts/instances/embedded/')
         self.assertEqual(outpost['config']['authentik_host'], 'https://auth.lab.test')
-        self.assertEqual(len(outpost['providers']), 9)
+        self.assertEqual(len(outpost['providers']), 10)
 
 
 if __name__ == '__main__': unittest.main()

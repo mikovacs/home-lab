@@ -194,7 +194,7 @@ def authentik(api, domain, progress=lambda message: None):
     need(mappings, 'Built-in proxy scope mapping is unavailable; check Authentik initialization.')
     access = {'home': ['homelab-users'], 'radarr': [], 'sonarr': [], 'prowlarr': [],
               'torrent': [], 'bazarr': [], 'n8n': ['automation-users'], 'ai': ['ai-users'],
-              'status': ['homelab-users']}
+              'status': ['homelab-users'], 'monitor': []}
     provider_ids = []
     for host, extra_groups in access.items():
         progress('Configuring group-gated SSO: ' + host + '.' + domain)

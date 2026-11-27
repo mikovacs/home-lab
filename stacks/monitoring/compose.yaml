@@ -41,6 +41,8 @@ services:
     mem_limit: ${SERVICE_MEMORY:-512m}
     cpus: ${SERVICE_CPUS:-1.0}
     image: henrygd/beszel:0.21.2
+    environment:
+      APP_URL: https://monitor.${DOMAIN}
     volumes:
     - type: bind
       source: ${APPDATA_ROOT}/beszel
@@ -63,7 +65,7 @@ services:
       traefik.http.routers.monitor.entrypoints: websecure
       traefik.http.routers.monitor.tls: 'true'
       traefik.http.routers.monitor.tls.certresolver: cloudflare
-      traefik.http.routers.monitor.middlewares: private@file,headers@file,admin-auth@file
+      traefik.http.routers.monitor.middlewares: private@file,headers@file,beszel-sso@file
       traefik.http.services.monitor.loadbalancer.server.port: '8090'
 networks:
   proxy:

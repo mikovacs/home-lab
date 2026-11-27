@@ -54,6 +54,11 @@ def _check(temporary):
             assert not networks['discovery'].get('aliases')
             assert not networks['tunnel'].get('aliases')
             assert obj['services']['cloudflared']['profiles']==['tunnel']
+        if stack=='monitoring':
+            beszel=obj['services']['beszel']
+            assert not beszel.get('ports')
+            assert beszel['environment']['APP_URL']=='https://monitor.'+c['DOMAIN']
+            assert beszel['labels']['traefik.http.routers.monitor.middlewares']=='private@file,headers@file,beszel-sso@file'
         if stack=='management':
             dockge=obj['services']['dockge']
             assert dockge['profiles']==['admin']

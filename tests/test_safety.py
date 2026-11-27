@@ -191,10 +191,26 @@ class SafetyTests(unittest.TestCase):
                 mounted.assert_called_once_with(self.c['DATA_ROOT'],self.c['DATA_UUID'])
 
     def test_private_services_cannot_enter_tunnel(self):
-        self.c.update(REMOTE_APPS='terminal,docker',REMOTE_READY='yes')
-        with patch.object(h,'atomic') as write:
-            with self.assertRaises(h.SafetyError):h.render(self.c)
-            write.assert_not_called()
+        for remote in ('terminal,docker','monitor'):
+            self.c.update(REMOTE_APPS=remote,REMOTE_READY='yes')
+            with self.subTest(remote=remote),patch.object(h,'atomic') as write:
+                with self.assertRaises(h.SafetyError):h.render(self.c)
+                write.assert_not_called()
+
+    def test_beszel_auth_keeps_native_token_and_private_callbacks(self):
+        with patch.object(h,'atomic') as write,patch.object(h,'render_dockge_stacks'):
+            h.render(self.c)
+        dynamic=json.loads(next(call.args[1] for call in write.call_args_list
+                               if call.args[0].name=='dynamic.yml'))['http']
+        auth=dynamic['middlewares']['beszel-sso']['forwardAuth']
+        self.assertEqual(auth['authRequestHeaders'],['Cookie'])
+        self.assertFalse(auth['trustForwardHeader'])
+        self.assertNotIn('authResponseHeaders',auth)
+        callback=dynamic['routers']['beszel-outpost']
+        self.assertEqual(callback['entryPoints'],['websecure'])
+        self.assertEqual(callback['middlewares'],['private@file','headers@file'])
+        self.assertEqual(callback['rule'],'Host(`monitor.lab.test`) && PathPrefix(`/outpost.goauthentik.io/`)')
+        self.assertGreater(callback['priority'],dynamic['routers']['outpost']['priority'])
 
     def test_firewall_rejects_world_admin_cidrs_before_any_command(self):
         import runpy

@@ -32,7 +32,7 @@ Traefik reads discovery information through a restricted Docker socket proxy. Op
 
 Dockge discovers the same Compose sources through a read-only runtime view with project-matching directory names. This preserves existing `homelab-<stack>` identities and the single host environment; see [ADR 0001](decisions/0001-dockge-discovery.md).
 
-Cloudflare Tunnel reaches a separate, unpublished Traefik entrypoint containing only approved remote routes. Private administration is unavailable there. Local administration uses source-IP restrictions and basic authentication in addition to native login where available. See [networking](networking.md), [authentication](authentication.md) and [security](security.md).
+Cloudflare Tunnel reaches a separate, unpublished Traefik entrypoint containing only approved remote routes. Private administration is unavailable there. Local administration uses source-IP restrictions and basic authentication in addition to native login where available. Beszel uses admin-group ForwardAuth instead of BasicAuth to preserve its native API authorization header; see [ADR 0002](decisions/0002-beszel-authentication.md). See [networking](networking.md), [authentication](authentication.md) and [security](security.md).
 
 ## Host services
 

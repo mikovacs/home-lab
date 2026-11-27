@@ -16,6 +16,7 @@
 | Backup full or failed | Inspect Restic repository, free capacity, offline keys, stopped-service restart results and timer logs. Verify a restore before retention prune. |
 | AI OOM / Plex stutter | Stop AI, measure memory pressure, choose smaller model or lower concurrency. The installer does not pull or upgrade Ollama models. |
 | Beszel shows no host | Install the version-matched host agent with verified key/token and transport; hub alone is not a collector. |
+| Beszel public key is empty and Add System does not save | Verify the route uses `private@file,headers@file,beszel-sso@file` and the admin-only `homelab-monitor` provider is provisioned. BasicAuth conflicts with PocketBase's `Authorization` token. Follow the migration in [monitoring](monitoring.md); do not expose the API anonymously. |
 | Dockge changed YAML | Compare files with the recorded release; resolve edits through a reviewed release before further deployment. Do not discard changes to bypass integrity checks. |
 
 Use make logs STACK=<stack> privately; first-run logs may contain one-time credentials. `make healthcheck` reports supported container health/state only, not end-to-end identity or media correctness. For emergency management use SSH and current Compose definitions. Never solve a problem by deleting volumes, pruning broadly, formatting a drive, bypassing guards or publishing a temporary anonymous admin route.
