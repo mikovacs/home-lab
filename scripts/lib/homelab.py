@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[2]
 STACKS = ('infrastructure', 'identity', 'media', 'storage', 'automation',
           'monitoring', 'management', 'remote-access', 'ai')
 CORE = ('infrastructure', 'identity', 'monitoring', 'management')
+# MemTotal excludes reserved RAM. Allow 512 MiB of reservations on an 8 GiB host.
+# This is an eligibility floor, not a guarantee that a model fits available RAM.
+AI_MIN_VISIBLE_RAM_MIB = 7680
 MEDIA_DIRS = ('media/movies', 'media/tv', 'downloads/torrents/complete/movies',
               'downloads/torrents/complete/tv', 'downloads/torrents/incomplete')
 SECRET_NAMES = ('authentik-db-password', 'authentik-secret-key', 'n8n-db-password',
@@ -375,7 +378,8 @@ def gates(c, stack):
             require((Path(c['SECRETS_ROOT'])/'terminal-ssh'/name).is_file(), 'Provision pinned terminal SSH credentials')
     if stack=='ai':
         total = int(re.search(r'MemTotal:\s+(\d+)',Path('/proc/meminfo').read_text())[1])//1024
-        require(total>=8192, 'AI requires at least 8 GiB host RAM; review preflight before enabling')
+        require(total>=AI_MIN_VISIBLE_RAM_MIB,
+                'AI requires at least 7680 MiB OS-visible RAM (8 GiB-class host); review available RAM before enabling')
     require((Path(c['RUNTIME_ROOT'])/'traefik/dynamic.yml').is_file(), 'Run make prepare first')
 
 
@@ -480,8 +484,8 @@ def preflight():
     if Path('/proc/meminfo').exists():
         ram=int(re.search(r'MemTotal:\s+(\d+)',Path('/proc/meminfo').read_text())[1])//1024
         print('RAM MiB:',ram)
-        print('Recommendation:', 'Core only; enable stacks incrementally' if ram<8192 else 'Core/media; AI optional after measuring free RAM')
-        print('AI model guidance:', 'No local LLM recommended' if ram<8192 else 'Start with one 0.5–1.5B Q4 model, no automatic downloads')
+        print('Recommendation:', 'Core only; enable stacks incrementally' if ram<AI_MIN_VISIBLE_RAM_MIB else 'Core/media; AI optional after measuring free RAM')
+        print('AI model guidance:', 'No local LLM recommended' if ram<AI_MIN_VISIBLE_RAM_MIB else 'Start with one 0.5–1.5B Q4 model, no automatic downloads')
     print('SMART detail: administrator may run smartctl -a on discovered devices; USB may need -d sat. Do not run self-tests automatically.')
 
 

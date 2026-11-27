@@ -19,7 +19,7 @@ Keep this host inventory outside Git. Never identify a disk only by size or a na
 
 ## Memory and acceleration
 
-Start infrastructure and identity first, then add applications while watching available memory. Below 4 GiB, use fewer services or add RAM. On 4–8 GiB systems, omit AI initially. AI deployment requires at least 8 GiB total RAM, plus enough free memory for the chosen model after other workloads are running. Container limits do not make an oversized model fit.
+Start infrastructure and identity first, then add applications while watching available memory. Below 4 GiB, use fewer services or add RAM. On 4–8 GiB systems, omit AI initially. AI deployment requires at least 7680 MiB (7.5 GiB) OS-visible physical RAM, allowing reserved memory on an 8 GiB host, plus enough available memory for the chosen model after other workloads are running. Swap does not count toward the threshold. Container limits do not make an oversized model fit. See [AI resource planning](ai.md#resources-and-models).
 
 For Intel media acceleration, inspect `lspci`, `/dev/dri` and the `render` group. Use `vainfo` with the matching driver to check codec support. A render device alone does not prove that transcoding works. See [media setup](media.md) for the optional device override.
 

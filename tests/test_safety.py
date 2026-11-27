@@ -174,6 +174,22 @@ class SafetyTests(unittest.TestCase):
             h.main()
             self.assertNotIn('ai',[x.args[1] for x in deploy.call_args_list])
 
+    def test_ai_memory_gate_allows_reserved_ram_but_rejects_smaller_hosts(self):
+        dynamic=Path(self.c['RUNTIME_ROOT'])/'traefik/dynamic.yml'
+        dynamic.parent.mkdir(parents=True)
+        dynamic.write_text('{}\n')
+        for total,allowed in ((0,False),(4096,False),(7679,False),
+                              (7680,True),(7782,True),(8192,True)):
+            with self.subTest(total_mib=total),patch.object(h,'need_secrets'), \
+                 patch.object(h,'mounted') as mounted, \
+                 patch.object(Path,'read_text',return_value=f'MemTotal: {total*1024} kB\nSwapTotal: 8388608 kB\n'):
+                if allowed:
+                    h.gates(self.c,'ai')
+                else:
+                    with self.assertRaisesRegex(h.SafetyError,'7680 MiB OS-visible RAM'):
+                        h.gates(self.c,'ai')
+                mounted.assert_called_once_with(self.c['DATA_ROOT'],self.c['DATA_UUID'])
+
     def test_private_services_cannot_enter_tunnel(self):
         self.c.update(REMOTE_APPS='terminal,docker',REMOTE_READY='yes')
         with patch.object(h,'atomic') as write:
