@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / 'scripts/lib'))
@@ -154,6 +154,81 @@ class InstallerTests(unittest.TestCase):
         client = Mock(); client.request.return_value = [{'id': TUNNEL}]; pending = Mock()
         with self.assertRaises(api.APIError): api.create_local_tunnel(client, ACCOUNT, 'homelab', pending)
         self.assertEqual(client.request.call_count, 1); pending.assert_not_called()
+
+    @contextlib.contextmanager
+    def origin_response(self, status=200, head_status=None, malformed=False, tls_error=None):
+        class HeadersOnly(io.BytesIO):
+            def read(self, *args):
+                raise AssertionError('Origin probe must not download the body')
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        def reply(request):
+            code = head_status if request.startswith(b'HEAD ') and head_status is not None else status
+            wire = (f'HTTP/1.1 {code} Test\r\nLocation: https://unrelated.invalid/\r\n'
+                    'Content-Length: 1000000\r\n\r\n').encode()
+            connection.makefile.return_value = HeadersOnly(b'not-http\r\n' if malformed else wire)
+        connection.sendall.side_effect = reply
+        context = ui.ssl.create_default_context()
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ui.ssl.CERT_REQUIRED)
+        with patch.object(ui.ssl, 'create_default_context', return_value=context), \
+             patch.object(context, 'wrap_socket', return_value=connection, side_effect=tls_error) as wrap, \
+             patch.object(ui.socket, 'create_connection') as dial:
+            yield connection, dial, wrap
+
+    def test_origin_uses_get_for_filebrowser_with_head_404_and_preserves_local_tls(self):
+        c = self.values()
+        with self.origin_response(status=200, head_status=404) as (connection, dial, wrap):
+            ui.tls_origin(c, 'files.lab.test')
+            dial.assert_called_once_with((c['LAN_IP'], 443), timeout=15)
+            wrap.assert_called_once_with(dial.return_value.__enter__.return_value,
+                                         server_hostname='files.lab.test')
+            connection.sendall.assert_called_once_with(
+                b'GET / HTTP/1.1\r\nHost: files.lab.test\r\nConnection: close\r\n\r\n')
+
+    def test_origin_accepts_auth_responses_without_following_redirects(self):
+        for status in (200, 204, 301, 302, 303, 307, 308, 401, 403):
+            with self.subTest(status=status), self.origin_response(status) as (_, dial, _):
+                ui.tls_origin(self.values(), 'files.lab.test')
+                self.assertEqual(dial.call_count, 1)
+
+    def test_origin_rejects_missing_routes_method_errors_and_server_errors(self):
+        for status in (404, 405, 429, 500, 502, 503):
+            with self.subTest(status=status), self.origin_response(status):
+                with self.assertRaisesRegex(h.SafetyError, f'files.lab.test.*HTTP {status}'):
+                    ui.tls_origin(self.values(), 'files.lab.test')
+        with self.origin_response(malformed=True):
+            with self.assertRaisesRegex(h.SafetyError, 'Invalid HTTP response'):
+                ui.tls_origin(self.values(), 'files.lab.test')
+
+    def test_origin_hooks_404_exception_is_limited_to_probe_path(self):
+        with self.origin_response(404) as (connection, _, _):
+            ui.tls_origin(self.values(), 'hooks.lab.test')
+            self.assertTrue(connection.sendall.call_args.args[0].startswith(
+                b'GET /webhook/__homelab_probe__ HTTP/1.1\r\n'))
+        with self.origin_response(500), self.assertRaises(h.SafetyError):
+            ui.tls_origin(self.values(), 'hooks.lab.test')
+
+    def test_origin_failure_blocks_remote_state_dns_and_deployment(self):
+        for failure in ('http', 'tls'):
+            with self.subTest(failure=failure):
+                wizard = ui.Wizard(self.base)
+                wizard.state = {'completed': ['identity', 'tunnel-credentials'],
+                                'selected': ['storage'], 'native_stacks': ['storage']}
+                wizard.mark('applications')
+                before = wizard.file.read_bytes()
+                tls_error = ui.ssl.SSLCertVerificationError('test certificate failure') if failure == 'tls' else None
+                with patch.object(wizard, 'c', return_value=self.values()), \
+                     patch.object(ui, 'prompt', return_value='auth,files'), \
+                     patch.object(ui, 'yes', return_value=True), \
+                     patch.object(ui, 'ensure_dns') as dns, \
+                     patch.object(ui, 'save_environment') as save, \
+                     patch.object(h, 'compose') as compose, \
+                     self.origin_response(404, tls_error=tls_error):
+                    with self.assertRaises((h.SafetyError, ui.ssl.SSLCertVerificationError)):
+                        wizard.remote()
+                    dns.assert_not_called(); save.assert_not_called(); compose.assert_not_called()
+                self.assertEqual(wizard.file.read_bytes(), before)
 
     def test_dns_checks_every_conflict_before_any_write(self):
         client = Mock(); client.request.side_effect = [[], [{'type': 'A', 'content': '192.0.2.1'}]]

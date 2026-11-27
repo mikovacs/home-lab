@@ -2,6 +2,7 @@
 """Resumable interactive HomeLab installer. Host data stays outside release source."""
 import argparse
 import getpass
+import http.client
 import ipaddress
 import json
 import os
@@ -115,11 +116,18 @@ def tls_origin(c, host):
     with socket.create_connection((c['LAN_IP'], 443), timeout=15) as raw:
         with context.wrap_socket(raw, server_hostname=host) as connection:
             path = '/webhook/__homelab_probe__' if host == 'hooks.' + c['DOMAIN'] else '/'
-            connection.sendall(('HEAD ' + path + ' HTTP/1.1\r\nHost: ' + host + '\r\nConnection: close\r\n\r\n').encode())
-            status = connection.recv(2048).split(b'\r\n', 1)[0]
-    h.require(re.match(rb'HTTP/1\.[01] (200|204|301|302|303|307|308|401|403)\b', status)
-              or host == 'hooks.' + c['DOMAIN'] and re.match(rb'HTTP/1\.[01] 404\b', status),
-              'Origin is not ready for ' + host + '; check service, TLS and local routing before publishing.')
+            # Probe the browser route: some apps return 404 for HEAD but serve GET.
+            connection.sendall(('GET ' + path + ' HTTP/1.1\r\nHost: ' + host + '\r\nConnection: close\r\n\r\n').encode())
+            with http.client.HTTPResponse(connection) as response:
+                try:
+                    response.begin()
+                except http.client.HTTPException:
+                    raise h.SafetyError(f'Invalid HTTP response from origin {host}; publication stopped.') from None
+                status = response.status
+                # Do not follow redirects or download the application response body.
+    h.require(status in (200, 204, 301, 302, 303, 307, 308, 401, 403)
+              or host == 'hooks.' + c['DOMAIN'] and status == 404,
+              f'Origin is not ready for {host} (HTTP {status}); check service, TLS and local routing before publishing.')
 
 
 class Wizard:

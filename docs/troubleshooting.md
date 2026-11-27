@@ -8,6 +8,7 @@
 | DNS unavailable | SSH by numeric IP; restore client DNS to router temporarily, inspect AdGuard through SSH tunnel. |
 | Port 53 occupied | Inspect ss output for an existing resolver; determine a deliberate host resolver plan before disabling any service. |
 | TLS warnings | Staging ACME is untrusted; check zone token, DNS resolution, acme.json permissions and production transition. Do not disable verification for tunnel origins. |
+| Remote publication stops at origin readiness | Compare a GET request through the LAN IP using the real service hostname and verified TLS. FileBrowser can return 404 to HEAD while GET works; use a release with the GET origin probe. A GET 404 or 5xx still requires routing/application repair before publication. |
 | ForwardAuth loop / 404 | Verify exact provider external URL, embedded outpost assignment, auth hostname, callback router, cookies and group bindings. |
 | Native API returns SSO HTML | Use internal service DNS/native API key or private access; do not globally exempt API paths. |
 | qBittorrent rejects Host header | Configure its trusted server domains and reverse-proxy settings to the exact torrent hostname; keep CSRF/clickjacking/auth protections enabled. |
