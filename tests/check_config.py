@@ -54,7 +54,13 @@ def _check(temporary):
             assert not networks['discovery'].get('aliases')
             assert not networks['tunnel'].get('aliases')
             assert obj['services']['cloudflared']['profiles']==['tunnel']
-        if stack=='management':assert obj['services']['dockge']['profiles']==['admin']
+        if stack=='management':
+            dockge=obj['services']['dockge']
+            assert dockge['profiles']==['admin']
+            view=c['RUNTIME_ROOT']+'/dockge-stacks'
+            assert dockge['environment']['DOCKGE_STACKS_DIR']==view
+            assert any(v['source']==view and v['target']==view and v['read_only'] for v in dockge['volumes'])
+            assert any(v['source']==str(root) and v['target']==str(root) and v['read_only'] for v in dockge['volumes'])
     for workflow in (root/'config/n8n/workflows').glob('*.json'):
         w=json.loads(workflow.read_text())
         assert w['active'] is False

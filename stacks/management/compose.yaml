@@ -56,7 +56,7 @@ services:
     profiles:
     - admin
     environment:
-      DOCKGE_STACKS_DIR: ${REPO_ROOT}/stacks
+      DOCKGE_STACKS_DIR: ${RUNTIME_ROOT}/dockge-stacks
     volumes:
     - type: bind
       source: ${APPDATA_ROOT}/dockge
@@ -80,6 +80,12 @@ services:
       source: ${RUNTIME_ROOT}
       target: ${RUNTIME_ROOT}
       read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${RUNTIME_ROOT}/dockge-stacks
+      target: ${RUNTIME_ROOT}/dockge-stacks
+      read_only: true
       bind:
         create_host_path: false
     - type: bind

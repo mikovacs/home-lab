@@ -30,6 +30,47 @@ class SafetyTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_dockge_discovery_preserves_source_and_project_names(self):
+        runtime=Path(self.c['RUNTIME_ROOT']);runtime.mkdir()
+        source=self.base/'source';source.mkdir()
+        self.c['REPO_ROOT']=str(source)
+        host=self.base/'host.env';host.write_text('DOMAIN=lab.test\n')
+        for stack in h.STACKS:
+            folder=source/'stacks'/stack;folder.mkdir(parents=True)
+            (folder/'compose.yaml').write_text('name: homelab-'+stack+'\n')
+            (folder/'.env').symlink_to(host)
+        h.render_dockge_stacks(self.c)
+        view=runtime/'dockge-stacks'
+        before={p.name:p.lstat().st_ino for p in view.iterdir()}
+        h.render_dockge_stacks(self.c)
+        self.assertEqual(before,{p.name:p.lstat().st_ino for p in view.iterdir()})
+        self.assertEqual(set(before),{'homelab-'+s for s in h.STACKS})
+        for stack in h.STACKS:
+            alias=view/('homelab-'+stack)
+            self.assertEqual((alias/'.env').resolve(),host)
+            self.assertEqual((alias/'compose.yaml').stat().st_ino,
+                             (source/'stacks'/stack/'compose.yaml').stat().st_ino)
+        # A release directory replacement must be followed by the same links.
+        source.rename(self.base/'previous-source')
+        for stack in h.STACKS:
+            folder=source/'stacks'/stack;folder.mkdir(parents=True)
+            (folder/'compose.yaml').write_text('new release\n')
+        self.assertEqual((view/'homelab-media'/'compose.yaml').read_text(),'new release\n')
+
+    def test_dockge_discovery_rejects_conflicts_without_replacing_them(self):
+        runtime=Path(self.c['RUNTIME_ROOT']);runtime.mkdir()
+        view=runtime/'dockge-stacks';view.mkdir()
+        conflict=view/'homelab-media'
+        conflict.write_text('operator file')
+        with self.assertRaises(h.SafetyError):h.render_dockge_stacks(self.c)
+        self.assertEqual(conflict.read_text(),'operator file')
+        self.assertEqual(list(view.iterdir()),[conflict])
+        conflict.unlink();conflict.symlink_to(self.base/'wrong-target')
+        with self.assertRaises(h.SafetyError):h.render_dockge_stacks(self.c)
+        self.assertEqual(conflict.readlink(),self.base/'wrong-target')
+        conflict.unlink();view.rmdir();view.symlink_to(self.base/'elsewhere')
+        with self.assertRaises(h.SafetyError):h.render_dockge_stacks(self.c)
+
     def test_deploy_recreates_containers_to_refresh_source_and_storage_binds(self):
         with patch.object(h,'gates'), patch.object(h,'compose') as compose, patch.object(h,'health'):
             h.deploy(self.c,'infrastructure')

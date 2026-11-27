@@ -173,7 +173,7 @@ def need_secrets(c, stack):
 
 def compose(c, stack, *args, dry=False, capture=False, stdin_text=None):
     require(stack in STACKS, f'Unknown stack: {stack}')
-    # Match Dockge's directory-based Compose project identity exactly.
+    # Preserve the explicit homelab-<stack> project identity from Compose.
     env = dict(os.environ)
     for k in read_env(ROOT / '.env.example'):
         env.pop(k, None)
@@ -266,6 +266,23 @@ def generate_secrets(c, dry=False):
     print('Generated missing secrets. Add cloudflare-dns-token, admin-htpasswd and optional tunnel-credentials manually.')
 
 
+def render_dockge_stacks(c):
+    """Expose canonical source through project-named links, without copying it."""
+    view = Path(c['RUNTIME_ROOT']) / 'dockge-stacks'
+    mkdir_new(view, mode=0o755)
+    expected = {'homelab-' + stack: Path(c['REPO_ROOT']) / 'stacks' / stack for stack in STACKS}
+    # Validate the entire existing view before adding anything. Never replace
+    # operator files, redirect links, or remove unknown entries automatically.
+    for entry in view.iterdir():
+        require(entry.name in expected and entry.is_symlink()
+                and entry.readlink() == expected[entry.name],
+                f'Conflicting Dockge discovery entry: {entry}')
+    for name, target in expected.items():
+        link = view / name
+        if not link.is_symlink():
+            link.symlink_to(target, target_is_directory=True)
+
+
 def render(c):
     """JSON is a YAML subset; avoid a runtime YAML package dependency."""
     runtime = Path(c['RUNTIME_ROOT'])
@@ -336,6 +353,7 @@ def render(c):
     atomic(hp/'settings.yaml',json.dumps({'title':'HomeLab','theme':'dark'})+'\n',0o644)
     atomic(hp/'widgets.yaml',json.dumps([{'resources':{'cpu':True,'memory':True,'disk':'/storage'}}])+'\n',0o644)
     atomic(hp/'bookmarks.yaml','[]\n',0o644)
+    render_dockge_stacks(c)
 
 
 def gates(c, stack):
