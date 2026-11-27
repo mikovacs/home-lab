@@ -66,28 +66,33 @@ class SafetyTests(unittest.TestCase):
             self.assertEqual(flock.call_args.args[1], fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
 
     def test_systemd_install_binds_stacks_to_correct_mount_and_never_enables_ai(self):
-        import runpy
+        import install_systemd
+        self.c['LAN_INTERFACE'] = 'eno1'
         writes = {}
         def run(args, **kwargs):
             self.assertEqual(args[0], 'systemd-escape' if '--path' in args else 'systemctl')
             if '--path' in args:
                 return 'media.mount' if args[-1] == self.c['MEDIA_ROOT'] else 'data.mount'
             self.assertEqual(args, ['systemctl', 'daemon-reload'])
-        with patch.object(sys, 'argv', ['install_systemd.py']), \
-             patch.object(h, 'config', return_value=self.c), patch.object(h, 'root_only'), \
+        with patch.object(h, 'root_only'), \
              patch.object(h, 'run', side_effect=run), \
              patch.object(h, 'atomic', side_effect=lambda path, content, mode: writes.update({path.name: content})):
-            runpy.run_path(str(h.ROOT / 'scripts/lib/install_systemd.py'), run_name='__main__')
+            install_systemd.install_units(self.c, target=self.base / 'units')
         for stack in ('media', 'storage', 'management', 'ai'):
             unit = writes[f'homelab-{stack}.service']
             self.assertIn('BindsTo=' + ('media.mount' if stack == 'media' else 'data.mount'), unit)
             self.assertIn(f'deploy --stack {stack} --wait-lock', unit)
             self.assertIn('Environment=HOMELAB_ENV_FILE=', unit)
-            self.assertIn('TimeoutStartSec=1260', unit)
+            self.assertIn('TimeoutStartSec=1860', unit)
             self.assertIn('PartOf=docker.service', unit)
             self.assertIn('WantedBy=multi-user.target docker.service', unit)
             self.assertNotIn('@', unit)
         self.assertIn('homelab-management.service', writes['homelab-ai.service'])
+        dropin = writes['20-homelab-network.conf']
+        self.assertIn('ExecStartPre=/usr/bin/env HOMELAB_ENV_FILE=', dropin)
+        self.assertIn('homelab.py network-ready', dropin)
+        self.assertIn('TimeoutStartSec=480', dropin)
+        self.assertNotIn('ExecStart=', dropin)
 
     def test_dockge_discovery_preserves_source_and_project_names(self):
         runtime=Path(self.c['RUNTIME_ROOT']);runtime.mkdir()

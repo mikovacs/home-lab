@@ -448,7 +448,7 @@ class Wizard:
         self.controller('backup-init') if yes('Initialize the configured Restic repository now (only if not initialized)?') else None
         if yes('Run an application-consistent backup and integrity sample now?'):
             self.controller('backup'); self.controller('backup-check'); self.mark('backup')
-        if yes('Install systemd unit files (installation alone enables nothing)?'):
+        if yes('Install systemd units and Docker LAN-startup guard (no services are enabled or restarted)?'):
             h.run([sys.executable, h.ROOT / 'scripts/lib/install_systemd.py'])
             self.mark('units')
         if yes('Review and apply the Docker-compatible firewall? Keep console and a second SSH session open.'):

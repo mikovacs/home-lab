@@ -414,6 +414,9 @@ def start_timeout(c):
 def deploy(c, stack, dry=False):
     gates(c,stack)  # Dry runs still fail closed.
     compose(c,stack,'config','--quiet')
+    if stack == 'storage':
+        from startup import wait_for_files_oidc
+        wait_for_files_oidc(c, dry=dry)
     timeout = start_timeout(c)
     # Source directory replacement and remounted storage need fresh bind mounts, even with unchanged YAML.
     compose(c,stack,'up','-d','--force-recreate','--wait','--wait-timeout',timeout,dry=dry)
@@ -842,6 +845,12 @@ def _main(locks):
     if a.command=='preflight': preflight();return
     if a.command=='validate': validate();return
     c=config()
+    if a.command == 'network-ready':
+        # Docker ExecStartPre must never wait for a lock held by a command
+        # waiting on Docker itself. This check is host-only and read-only.
+        from startup import wait_for_lan
+        wait_for_lan(c, dry=a.dry_run)
+        return
     lock=None
     if not a.dry_run and a.command not in ('guard','status','logs','healthcheck','media-validate','check-install'):
         runtime=Path(c['RUNTIME_ROOT'])
