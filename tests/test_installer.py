@@ -361,12 +361,52 @@ class InstallerTests(unittest.TestCase):
     def test_redeploy_invalidates_native_approval_until_reconfirmed(self):
         wizard = ui.Wizard(self.base); c = self.values()
         wizard.state.update(completed=['identity', 'native-accounts'], selected=['storage'], native_stacks=['storage'])
-        with patch.object(wizard, 'c', return_value=c), patch.object(ui, 'prompt', return_value='storage'), \
+        with patch.object(wizard, 'c', return_value=c), patch.object(ui, 'prompt', side_effect=['storage', 'none']), \
              patch.object(ui, 'yes', side_effect=[True, False]), patch.object(h, 'gates'), \
              patch.object(wizard, 'controller'):
             wizard.applications()
         self.assertEqual(wizard.state['native_stacks'], [])
         self.assertNotIn('native-accounts', wizard.state['completed'])
+
+    def test_boot_units_enable_only_selected_stacks_and_explicit_ai(self):
+        for selected in (['media', 'storage', 'management'], ['ai']):
+            with self.subTest(selected=selected):
+                wizard = ui.Wizard(self.base)
+                wizard.state.update(completed=['applications', 'units'], selected=selected)
+                def answer(question):
+                    return question.startswith('Enable verified-mount ')
+                with patch.object(ui, 'yes', side_effect=answer), patch.object(h, 'run') as run:
+                    wizard.operations()
+                enabled = [call.args[0][-1] for call in run.call_args_list]
+                self.assertEqual(set(enabled), {f'homelab-{stack}.service' for stack in selected})
+
+    def test_optional_profiles_are_saved_only_after_deployment_approval(self):
+        for approved in (False, True):
+            wizard = ui.Wizard(self.base); c = self.values()
+            wizard.state['completed'] = ['identity']
+            with patch.object(wizard, 'c', return_value=c), \
+                 patch.object(ui, 'prompt', side_effect=['media,management', 'bazarr,admin']), \
+                 patch.object(ui, 'yes', side_effect=[approved, False]), \
+                 patch.object(h, 'gates'), patch.object(wizard, 'controller') as controller, \
+                 patch.object(ui, 'save_environment') as save:
+                wizard.applications()
+            self.assertEqual(save.called, approved)
+            if approved:
+                self.assertEqual(save.call_args.args[1]['COMPOSE_PROFILES'], 'bazarr,admin')
+            else:
+                controller.assert_not_called()
+
+    def test_adding_ai_preserves_profiles_of_already_selected_stacks(self):
+        wizard = ui.Wizard(self.base); c = self.values()
+        c['COMPOSE_PROFILES'] = 'bazarr,admin'
+        wizard.state.update(completed=['identity'], selected=['media', 'management'])
+        with patch.object(wizard, 'c', return_value=c), \
+             patch.object(ui, 'prompt', side_effect=['ai', 'bazarr,admin']), \
+             patch.object(ui, 'yes', side_effect=[True, False]), patch.object(h, 'gates'), \
+             patch.object(wizard, 'controller') as controller, patch.object(ui, 'save_environment') as save:
+            wizard.applications()
+        self.assertEqual(save.call_args.args[1]['COMPOSE_PROFILES'], 'bazarr,admin')
+        controller.assert_called_once_with('deploy', '--stack', 'ai')
 
 
 class IdentityReadinessTests(unittest.TestCase):

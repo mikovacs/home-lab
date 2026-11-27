@@ -45,7 +45,7 @@ services:
       data-guard:
         condition: service_completed_successfully
   dockge:
-    restart: unless-stopped
+    restart: 'no'
     init: true
     stop_grace_period: 45s
     security_opt: *id001
@@ -55,6 +55,9 @@ services:
     image: louislam/dockge:1.5.0
     profiles:
     - admin
+    depends_on:
+      data-guard:
+        condition: service_completed_successfully
     environment:
       DOCKGE_STACKS_DIR: ${RUNTIME_ROOT}/dockge-stacks
     volumes:

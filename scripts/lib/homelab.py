@@ -107,6 +107,7 @@ def configuration_directory(c, canonical=True):
 
 
 def validate_paths(c, check_config_canonical=True):
+    configured_profiles(c)
     names = ('REPO_ROOT','APPDATA_ROOT','SECRETS_ROOT','RUNTIME_ROOT','DATA_ROOT','MEDIA_ROOT')
     paths = [safe_path(c[n]) for n in names]
     cfg = configuration_directory(c, canonical=check_config_canonical)
@@ -174,6 +175,14 @@ def need_secrets(c, stack):
             require('SET_ME' not in p.read_text(), 'Configure a real scoped Cloudflare DNS token')
 
 
+def configured_profiles(c):
+    value = c.get('COMPOSE_PROFILES', '')
+    profiles = value.split(',') if value else []
+    require(len(profiles) == len(set(profiles)) and set(profiles) <= {'bazarr', 'admin'},
+            'COMPOSE_PROFILES may contain only bazarr and admin, comma-separated')
+    return profiles
+
+
 def compose(c, stack, *args, dry=False, capture=False, stdin_text=None):
     require(stack in STACKS, f'Unknown stack: {stack}')
     # Preserve the explicit homelab-<stack> project identity from Compose.
@@ -181,7 +190,9 @@ def compose(c, stack, *args, dry=False, capture=False, stdin_text=None):
     for k in read_env(ROOT / '.env.example'):
         env.pop(k, None)
     env.update(c)
-    env.pop('COMPOSE_PROFILES', None)
+    # Only the selected host configuration can retain optional services.
+    # Ignore inherited shell profiles, including wildcard/tunnel/terminal.
+    env['COMPOSE_PROFILES'] = ','.join(configured_profiles(c))
     env.pop('COMPOSE_PROJECT_NAME', None)
     cmd = ['docker','compose','--project-directory',ROOT/'stacks'/stack,
            '--env-file',env_file(),'-f',ROOT/'stacks'/stack/'compose.yaml']
@@ -824,6 +835,8 @@ def _main(locks):
     p.add_argument('--confirm-storage',action='store_true')
     p.add_argument('--snapshot')
     p.add_argument('--target')
+    p.add_argument('--wait-lock', action='store_true',
+                   help='wait for another operation (used by bounded systemd boot jobs)')
     a=p.parse_args()
     if a.command=='init': initialize_config(a.dry_run);return
     if a.command=='preflight': preflight();return
@@ -835,7 +848,7 @@ def _main(locks):
         if runtime.is_dir():
             import fcntl
             lock=locks.enter_context(open(runtime/'operation.lock','a'))
-            try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            try:fcntl.flock(lock,fcntl.LOCK_EX | (0 if a.wait_lock else fcntl.LOCK_NB))
             except BlockingIOError:raise SafetyError('Another HomeLab operation is running')
     if a.command=='mount-storage': mount_storage(c,a.dry_run,a.confirm_storage)
     elif a.command=='configure-network': configure_network(c,a.dry_run)

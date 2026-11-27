@@ -1,6 +1,6 @@
 # Optional local AI
 
-AI is absent from deploy-core and deploy-all. Ollama and Open WebUI have no automatic restart and no public API port. Ollama storage is on the UUID-verified secondary drive; WebUI database/config is on the primary drive. n8n and Ollama share a dedicated AI bridge; additional trusted apps can join it explicitly. CPU-only inference is the shipped mode. The installer never runs `ollama pull`. Image layers may include model assets. Check the embedding and auxiliary-model download settings before enabling document features.
+AI is absent from deploy-core and deploy-all. Ollama and Open WebUI have no Docker automatic restart and no public API port. After AI onboarding, explicitly enable `homelab-ai.service` in installer step 11 for guarded boot startup after data-mount verification. Ollama storage is on the UUID-verified secondary drive; WebUI database/config is on the primary drive. n8n and Ollama share a dedicated AI bridge; additional trusted apps can join it explicitly. CPU-only inference is the shipped mode. The installer never runs `ollama pull`. Image layers may include model assets. Check the embedding and auxiliary-model download settings before enabling document features.
 
 ## Resources and models
 

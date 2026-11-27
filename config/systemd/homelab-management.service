@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab Homepage and selected administration services with verified data filesystem
+After=docker.service @DATA_MOUNT@ homelab-media.service homelab-storage.service
+Requires=docker.service
+PartOf=docker.service
+BindsTo=@DATA_MOUNT@
+RequiresMountsFor=@DATA_ROOT@
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@REPO_ROOT@
+ExecStart=/usr/bin/python3 @REPO_ROOT@/scripts/lib/homelab.py deploy --stack management --wait-lock
+ExecStop=/usr/bin/python3 @REPO_ROOT@/scripts/lib/homelab.py stop --stack management --wait-lock
+TimeoutStartSec=@STACK_UNIT_TIMEOUT@
+TimeoutStopSec=2m
+[Install]
+WantedBy=multi-user.target docker.service

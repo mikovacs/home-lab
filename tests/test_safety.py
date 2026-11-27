@@ -30,6 +30,65 @@ class SafetyTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_only_host_selected_optional_profiles_reach_compose(self):
+        for configured in ('', 'bazarr', 'admin', 'bazarr,admin'):
+            self.c['COMPOSE_PROFILES'] = configured
+            with patch.dict(os.environ, {'COMPOSE_PROFILES': '*,tunnel,terminal',
+                                         'COMPOSE_PROJECT_NAME': 'wrong-project'}), \
+                 patch.object(h, 'run') as run:
+                for command in ('up', 'stop', 'ps', 'start'):
+                    h.compose(self.c, 'media', command)
+            for call in run.call_args_list:
+                self.assertEqual(call.kwargs['env']['COMPOSE_PROFILES'], configured)
+                self.assertNotIn('COMPOSE_PROJECT_NAME', call.kwargs['env'])
+        for invalid in ('*', 'tunnel', 'terminal', 'admin,bazarr,tunnel', 'admin,admin', 'admin,'):
+            self.c['COMPOSE_PROFILES'] = invalid
+            with self.subTest(invalid=invalid), patch.object(h, 'run') as run:
+                with self.assertRaises(h.SafetyError): h.compose(self.c, 'media', 'up')
+                run.assert_not_called()
+
+    def test_data_stack_startup_never_runs_compose_with_missing_mount(self):
+        for stack in ('storage', 'management', 'ai'):
+            with self.subTest(stack=stack), patch.object(h, 'need_secrets'), \
+                 patch.object(h, 'mounted', side_effect=h.SafetyError('wrong UUID')), \
+                 patch.object(h, 'compose') as compose:
+                with self.assertRaises(h.SafetyError): h.deploy(self.c, stack)
+                compose.assert_not_called()
+
+    def test_boot_waits_for_operation_lock_but_manual_deploy_fails_fast(self):
+        import fcntl
+        Path(self.c['RUNTIME_ROOT']).mkdir()
+        for wait in (False, True):
+            args = ['homelab.py', 'deploy', '--stack', 'ai'] + (['--wait-lock'] if wait else [])
+            with patch.object(sys, 'argv', args), patch.object(h, 'config', return_value=self.c), \
+                 patch.object(h, 'deploy'), patch.object(fcntl, 'flock') as flock:
+                h.main()
+            self.assertEqual(flock.call_args.args[1], fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+
+    def test_systemd_install_binds_stacks_to_correct_mount_and_never_enables_ai(self):
+        import runpy
+        writes = {}
+        def run(args, **kwargs):
+            self.assertEqual(args[0], 'systemd-escape' if '--path' in args else 'systemctl')
+            if '--path' in args:
+                return 'media.mount' if args[-1] == self.c['MEDIA_ROOT'] else 'data.mount'
+            self.assertEqual(args, ['systemctl', 'daemon-reload'])
+        with patch.object(sys, 'argv', ['install_systemd.py']), \
+             patch.object(h, 'config', return_value=self.c), patch.object(h, 'root_only'), \
+             patch.object(h, 'run', side_effect=run), \
+             patch.object(h, 'atomic', side_effect=lambda path, content, mode: writes.update({path.name: content})):
+            runpy.run_path(str(h.ROOT / 'scripts/lib/install_systemd.py'), run_name='__main__')
+        for stack in ('media', 'storage', 'management', 'ai'):
+            unit = writes[f'homelab-{stack}.service']
+            self.assertIn('BindsTo=' + ('media.mount' if stack == 'media' else 'data.mount'), unit)
+            self.assertIn(f'deploy --stack {stack} --wait-lock', unit)
+            self.assertIn('Environment=HOMELAB_ENV_FILE=', unit)
+            self.assertIn('TimeoutStartSec=1260', unit)
+            self.assertIn('PartOf=docker.service', unit)
+            self.assertIn('WantedBy=multi-user.target docker.service', unit)
+            self.assertNotIn('@', unit)
+        self.assertIn('homelab-management.service', writes['homelab-ai.service'])
+
     def test_dockge_discovery_preserves_source_and_project_names(self):
         runtime=Path(self.c['RUNTIME_ROOT']);runtime.mkdir()
         source=self.base/'source';source.mkdir()

@@ -62,6 +62,8 @@ def _check(temporary):
         if stack=='management':
             dockge=obj['services']['dockge']
             assert dockge['profiles']==['admin']
+            assert dockge['restart']=='no'
+            assert dockge['depends_on']['data-guard']['condition']=='service_completed_successfully'
             view=c['RUNTIME_ROOT']+'/dockge-stacks'
             assert dockge['environment']['DOCKGE_STACKS_DIR']==view
             assert any(v['source']==view and v['target']==view and v['read_only'] for v in dockge['volumes'])
@@ -74,6 +76,15 @@ def _check(temporary):
             assert not webui.get('ports')
             assert webui['labels']['traefik.http.routers.ai.middlewares']=='headers@file,sso@file'
             assert webui['depends_on']['data-guard']['condition']=='service_completed_successfully'
+        if stack in ('storage', 'management', 'ai'):
+            assert all(svc['restart']=='no' for svc in obj['services'].values())
+    # The same external environment activates profiles in plain Compose/Dockge.
+    for profiles in ('', 'bazarr,admin'):
+        for stack, optional in (('media', 'bazarr'), ('management', 'dockge')):
+            raw=subprocess.check_output(['docker','compose','--env-file',str(root/'.env.example'),
+                '-f',str(root/'stacks'/stack/'compose.yaml'),'config','--services'],
+                env={**env,'COMPOSE_PROFILES':profiles},text=True)
+            assert (optional in raw.split()) == bool(profiles), (stack, profiles)
     for workflow in (root/'config/n8n/workflows').glob('*.json'):
         w=json.loads(workflow.read_text())
         assert w['active'] is False

@@ -84,7 +84,7 @@ class InstallFlowTests(unittest.TestCase):
                     with patch.object(ui,'JsonAPI',return_value=Mock()),patch.object(ui,'authentik') as identity,patch.object(ui,'adguard') as dns,patch.object(ui,'wait_for_identity'):
                         wizard.identity();identity.assert_called_once();dns.assert_called_once()
                     self.assertEqual(h.read_env(wizard.environment)['IDENTITY_READY'],'yes')
-                    with patch.object(ui,'prompt',return_value='media,storage,monitoring,management,automation'):
+                    with patch.object(ui,'prompt',side_effect=['media,storage,monitoring,management,automation','none']):
                         wizard.applications()
                 self.assertEqual(set(wizard.state['native_stacks']),set(ui.APP_STACKS)-{'ai'})
                 self.assertEqual(len([args for args in commands if 'up' in args]),7)

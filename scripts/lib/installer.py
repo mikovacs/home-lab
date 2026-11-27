@@ -330,8 +330,19 @@ class Wizard:
         h.require(len(names) == len(set(names)) and set(names) <= set(APP_STACKS), 'Choose only listed application stacks')
         c = self.c()
         for name in names: h.gates(c, name)
+        profiles = prompt('Persistent optional Compose profiles (bazarr,admin; none disables both)',
+                          c.get('COMPOSE_PROFILES') or 'none')
+        profiles = '' if profiles == 'none' else profiles
+        h.configured_profiles({**c, 'COMPOSE_PROFILES': profiles})
+        available = set(names) | set(self.state.get('selected', []))
+        h.require('bazarr' not in profiles.split(',') or 'media' in available,
+                  'Select the media stack for Bazarr')
+        h.require('admin' not in profiles.split(',') or 'management' in available,
+                  'Select the management stack for Dockge')
         print('Selected:', ', '.join(names) or '(none)')
         if not yes('Start these stacks now?'): return
+        c['COMPOSE_PROFILES'] = profiles
+        save_environment(self.environment, c)
         if c['REMOTE_APPS']:
             print('Closing current remote routes during application changes; re-enable only after local onboarding.')
             self.state['desired_remote_apps'] = c['REMOTE_APPS'].split(',')
@@ -449,6 +460,10 @@ class Wizard:
             h.run(['systemctl', 'enable', '--now', 'homelab-mount-guard.timer', 'homelab-monitor.timer'])
         if 'units' in self.state['completed'] and 'media' in self.state.get('selected', []) and yes('Enable verified-mount media startup on boot?'):
             h.run(['systemctl', 'enable', '--now', 'homelab-media.service'])
+        if 'units' in self.state['completed']:
+            for stack in ('storage', 'management', 'ai'):
+                if stack in self.state.get('selected', []) and yes(f'Enable verified-mount {stack} startup on boot?'):
+                    h.run(['systemctl', 'enable', '--now', f'homelab-{stack}.service'])
         if 'units' in self.state['completed'] and 'firewall' in self.state['completed'] and yes('Persist the already-tested firewall at boot?'):
             h.run(['systemctl', 'enable', 'homelab-firewall.service'])
         if 'units' in self.state['completed'] and 'backup' in self.state['completed']:
