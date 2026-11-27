@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import ssl
+import socket
 import subprocess
 import sys
 import tempfile
@@ -34,10 +35,18 @@ def main():
         c = h.config(example=True)
         c.update(RUNTIME_ROOT=str(base), SECRETS_ROOT=str(base / 'secrets'),
                  DOMAIN='audit.test', IDENTITY_READY='yes', REMOTE_READY='yes',
-                 REMOTE_APPS='auth,home,hooks', PUID=str(os.getuid()), PGID=str(os.getgid()))
+                 REMOTE_APPS='auth,home,hooks', JELLYFIN_PUBLIC_ENABLED='yes', PUID=str(os.getuid()), PGID=str(os.getgid()))
         for path in ('traefik', 'homepage', 'secrets'):
             (base / path).mkdir()
         h.render(c)
+        # A temporary certificate exercises the public hostname without an ACME account.
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                        '-keyout', str(base / 'key.pem'), '-out', str(base / 'cert.pem'),
+                        '-days', '1', '-subj', '/CN=jellyfin.audit.test',
+                        '-addext', 'subjectAltName=DNS:jellyfin.audit.test'],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (base / 'traefik' / 'cert.yml').write_text(json.dumps({'tls': {'certificates': [
+            {'certFile': '/cert.pem', 'keyFile': '/key.pem'}]}}))
         env = dict(os.environ, **h.config(example=True))
         env['DOMAIN'] = c['DOMAIN']
         config = json.loads(subprocess.check_output(['docker', 'compose', '--env-file', str(ROOT / '.env.example'),
@@ -80,24 +89,28 @@ def main():
                     '   if self.headers.get("Authorization"): code=418\n'
                     '  self.send_response(code); self.end_headers()\n'
                     ' def log_message(self,*args): pass\n'
-                    'for port in (9000,5678,3000,8090):\n'
+                    'for port in (9000,5678,3000,8090,8096):\n'
                     ' Thread(target=HTTPServer(("0.0.0.0",port),Handler).serve_forever,daemon=True).start()\n'
                     'Thread().join()\n')
             # Keep the process alive without sending any external requests.
             stub = stub.replace('Thread().join()', 'from threading import Event; Event().wait()')
             docker('create', '--name', name + '-origin', '--network', name,
-                   '--network-alias', 'server', '--network-alias', 'n8n', '--network-alias', 'homepage',
+                   '--network-alias', 'jellyfin', '--network-alias', 'server', '--network-alias', 'n8n', '--network-alias', 'homepage',
                    '--memory', '64m', '--read-only', '--cap-drop', 'ALL', python_image, 'python', '-c', stub)
             created.append(name + '-origin'); docker('start', created[-1])
             docker('create', '--name', name + '-proxy', '--network', name,
                    '--network-alias', auth_alias,
-                   '--publish', '127.0.0.1::8443', '--publish', '127.0.0.1::443',
+                   '--publish', '127.0.0.1::9443', '--publish', '127.0.0.1::8443', '--publish', '127.0.0.1::443',
                    '--memory', '256m', '--read-only', '--cap-drop', 'ALL',
-                   '--mount', 'type=bind,src=' + str(base / 'traefik') + ',dst=/dynamic,readonly', image,
+                   '--mount', 'type=bind,src=' + str(base / 'traefik') + ',dst=/dynamic,readonly',
+                   '--mount', 'type=bind,src=' + str(base / 'cert.pem') + ',dst=/cert.pem,readonly',
+                   '--mount', 'type=bind,src=' + str(base / 'key.pem') + ',dst=/key.pem,readonly', image,
+                   '--entrypoints.jellyfin-public.address=:9443', '--entrypoints.websecure.asdefault=true',
                    '--entrypoints.tunnel.address=:8443', '--entrypoints.websecure.address=:443',
                    '--providers.file.directory=/dynamic', '--providers.file.watch=true')
             created.append(name + '-proxy'); docker('start', created[-1])
             port = int(docker('port', created[-1], '8443/tcp').rsplit(':', 1)[1])
+            public_port = int(docker('port', created[-1], '9443/tcp').rsplit(':', 1)[1])
             local_port = int(docker('port', created[-1], '443/tcp').rsplit(':', 1)[1])
             # The test has no ACME account and intentionally uses Traefik's self-signed cert.
             context = ssl._create_unverified_context()
@@ -105,6 +118,10 @@ def main():
             def status(host, path='/', extra=None, target_port=None):
                 connection = http.client.HTTPSConnection('127.0.0.1', target_port or port, context=context, timeout=5)
                 try:
+                    if target_port == public_port:
+                        connection.sock = context.wrap_socket(
+                            socket.create_connection(('127.0.0.1', public_port), timeout=5),
+                            server_hostname='jellyfin.audit.test')
                     connection.request('GET', path, headers={'Host': host, **(extra or {})})
                     response = connection.getresponse(); response.read()
                     return response.status
@@ -122,6 +139,20 @@ def main():
                 raise AssertionError((host, wanted, 'timeout'))
 
             wait_status('auth.audit.test', 204)
+            deadline = time.monotonic() + 30
+            while True:
+                try:
+                    if status('jellyfin.audit.test', target_port=public_port) == 204: break
+                except (OSError, http.client.HTTPException): pass
+                if time.monotonic() >= deadline: raise AssertionError('Public Jellyfin listener not ready')
+                time.sleep(0.2)
+            for host in ('docker', 'terminal', 'traefik', 'adguard', 'monitor', 'auth',
+                         'home', 'radarr', 'sonarr', 'files', 'unknown'):
+                for path in ('/', '/outpost.goauthentik.io/callback'):
+                    assert status(host + '.audit.test', path,
+                                  {'X-Forwarded-Host': 'jellyfin.audit.test', 'X-Forwarded-For': '127.0.0.1'},
+                                  public_port) in (404, 421), (host, path)
+            assert status('jellyfin.audit.test', '/socket', target_port=public_port) == 204
             native = {'Authorization': 'audit-native-token'}
             session = {'Cookie': 'audit-session=allowed'}
             assert status('monitor.audit.test', '/api/beszel/getkey', native, local_port) == 401
@@ -148,7 +179,11 @@ def main():
                          '/webhook/%2e%2e/rest/settings', '/outpost.goauthentik.io/ping'):
                 assert status('hooks.audit.test', path) == 404, path
             assert status('home.audit.test', '/outpost.goauthentik.io/ping') == 204
-            c.update(REMOTE_APPS='', REMOTE_READY='no'); h.render(c)
+            c.update(REMOTE_APPS='', REMOTE_READY='no', JELLYFIN_PUBLIC_ENABLED='no'); h.render(c)
+            deadline = time.monotonic() + 15
+            while status('jellyfin.audit.test', target_port=public_port) != 404:
+                if time.monotonic() >= deadline: raise AssertionError('Public Jellyfin disable did not apply')
+                time.sleep(0.2)
             wait_status('auth.audit.test', 404)
             assert status('hooks.audit.test', '/webhook/probe') == 404
             assert status('home.audit.test', '/outpost.goauthentik.io/ping') == 404
@@ -160,7 +195,7 @@ def main():
                 time.sleep(0.2)
             assert status('monitor.audit.test', '/outpost.goauthentik.io/callback',
                           {'X-Forwarded-For': '192.0.2.1'}, local_port) == 403
-            print('PASS: local identity DNS/HTTPS, Traefik host/path boundaries and atomic remote disable; origins are stubs.')
+            print('PASS: local identity DNS/HTTPS, Traefik tunnel/public Jellyfin isolation and atomic remote disable; origins are stubs.')
         finally:
             for container in reversed(created):
                 subprocess.run(['docker', 'rm', '-f', container], check=True, stdout=subprocess.DEVNULL)

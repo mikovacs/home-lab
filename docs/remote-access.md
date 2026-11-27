@@ -52,3 +52,33 @@ The native app connects to the server URL you configure. It does not automatical
 For personal mobile devices, use [Tailscale](https://jellyfin.org/docs/general/post-install/networking/tailscale/) and the existing private route to `LAN_IP`, restricted DNS and the local `https://jellyfin.DOMAIN` endpoint. Each client needs enrollment and explicit grants; do not grant family playback devices SSH or private administration merely to enable streaming. Tailscale attempts a direct encrypted connection and can fall back to a relay, so verify actual throughput. Adding a device does not automatically extend this installation's existing grants or firewall source allowlist.
 
 For remote TVs or users without a VPN client, separately configure a public HTTPS reverse proxy with Jellyfin native authentication. Direct home hosting requires a reachable public address, appropriate DNS (DNS-only if hosted at Cloudflare), router forwarding and narrowly scoped firewall/proxy exposure. CGNAT may prevent this; a separately hosted reverse proxy with a private backend connection is another option. Do not simply forward the existing shared Traefik entrypoint, which also serves other local applications. This configuration does not enable any public media endpoint automatically.
+
+### Direct public Jellyfin HTTPS (opt-in)
+
+`JELLYFIN_PUBLIC_ENABLED=yes` enables only `jellyfin.DOMAIN` on the separate Traefik `jellyfin-public` entrypoint, TCP 9443. Other routers stay on `websecure` or `tunnel`; the default entrypoint is explicitly `websecure`. Unknown public hostnames cannot select the local applications. The public and local routes use the same certificate and TLS defaults. The listener is published on `LAN_IP:9443` in Compose, but has no route and no firewall allowance by default. It uses the existing DNS-challenge certificate resolver; no inbound port 80 is needed.
+
+Before enabling it, verify a globally routable WAN IPv4 (not CGNAT), upload bandwidth, completed Jellyfin setup, native authentication and per-user remote permissions. Use non-admin viewer accounts with strong passwords, disable automatic port mapping, keep Jellyfin updated and set Known Proxies to the actual Traefik proxy-network IP. Do not trust all networks. Local network definitions should include only actual LAN ranges, so remote viewers retain their per-user restrictions. Public Jellyfin uses native authentication for client compatibility, not an Authentik browser gate.
+
+Back up the host environment before changing `JELLYFIN_PUBLIC_ENABLED`. Render, reapply the firewall and recreate only infrastructure's Traefik service using the new release. Do not forward WAN traffic to the shared host ports 443 or 8443. Configure exactly **router WAN TCP 443 -> LAN_IP TCP 9443**; do not enable DMZ, UPnP, UDP forwarding or an IPv6 route for this service. Local AdGuard DNS continues to return `LAN_IP`, so clients retain the same HTTPS URL at home.
+
+Run the listener preflight with the selected host environment:
+
+```sh
+sudo env HOMELAB_ENV_FILE=/etc/homelab/host.env python3 -B scripts/lib/jellyfin_public.py check
+```
+
+The DDNS helper uses the existing private `cloudflare-dns-token` file. Initialize it against the explicitly reviewed **existing DNS-only A record** using its current address and the zone ID recorded in the wizard. It never creates/deletes records or adopts a conflicting CNAME, AAAA, proxied or replacement record. Replace the placeholders below with reviewed values:
+
+```sh
+sudo env HOMELAB_ENV_FILE=/etc/homelab/host.env python3 -B scripts/lib/jellyfin_public.py init --zone-id ZONE_ID --expected-ip CURRENT_A_ADDRESS
+sudo env HOMELAB_ENV_FILE=/etc/homelab/host.env python3 -B scripts/lib/jellyfin_public.py update
+sudo env HOMELAB_ENV_FILE=/etc/homelab/host.env python3 -B scripts/lib/jellyfin_public.py update --apply
+sudo env HOMELAB_ENV_FILE=/etc/homelab/host.env make install-systemd
+sudo systemctl enable --now homelab-jellyfin-ddns.timer
+```
+
+The updater requires two HTTPS IPv4 discovery services (Cloudflare and ipify) to agree, rejects private/reserved addresses, and checks local HTTPS health, completed onboarding, native authentication and non-Jellyfin hostname isolation before writing. Only the pinned record's address, DNS-only status and TTL (300 seconds) are updated. The binding and original record live in `HOMELAB_CONFIG_DIR/jellyfin-ddns.json` (0600) and are included in existing configuration backups. Unexpected external record changes stop updates. A five-minute timer retries after temporary network/service failures; inspect `journalctl -u homelab-jellyfin-ddns.service` and `systemctl list-timers homelab-jellyfin-ddns.timer`.
+
+Verify public DNS, sign-in and real playback from mobile data with Wi-Fi and Tailscale off. Also verify that other hostnames sent to the public port return 404/421, local playback still works and private administration still requires its existing access path. A local preflight does not prove router forwarding or ISP reachability.
+
+To withdraw access, remove the router forward first, stop/disable `homelab-jellyfin-ddns.timer`, set `JELLYFIN_PUBLIC_ENABLED=no`, render and reapply the firewall. This removes the public route and new-connection allowance; it does not automatically revert DNS or terminate established streams. Review the saved original record before restoring DNS. The installer's tunnel-disable action only controls Cloudflare Tunnel and does not withdraw this separate direct endpoint.

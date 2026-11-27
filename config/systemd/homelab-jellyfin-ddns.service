@@ -1,0 +1,15 @@
+[Unit]
+Description=Update the pinned Jellyfin DNS-only public IPv4 record
+After=network-online.target docker.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO_ROOT@
+ExecStart=/usr/bin/python3 -B @REPO_ROOT@/scripts/lib/jellyfin_public.py update --apply
+TimeoutStartSec=240
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@HOMELAB_CONFIG_DIR@ @RUNTIME_ROOT@

@@ -55,6 +55,9 @@ services:
     - --entrypoints.web.http.redirections.entrypoint.to=websecure
     - --entrypoints.web.http.redirections.entrypoint.scheme=https
     - --entrypoints.websecure.address=:443
+    - --entrypoints.websecure.asdefault=true
+    - --entrypoints.jellyfin-public.address=:9443
+    - --entrypoints.jellyfin-public.forwardedheaders.insecure=false
     - --entrypoints.tunnel.address=:8443
     - --entrypoints.tunnel.http.tls=true
     - --entrypoints.websecure.forwardedheaders.insecure=false
@@ -88,6 +91,7 @@ services:
     ports:
     - ${LAN_IP}:80:80
     - ${LAN_IP}:443:443
+    - ${LAN_IP}:9443:9443/tcp
     networks:
       proxy:
         aliases:

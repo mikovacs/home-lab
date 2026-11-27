@@ -34,6 +34,7 @@ The low-level `make init` command creates missing configuration for manual setup
 | DISK_WARN, DISK_CRITICAL, MIN_MEDIA_FREE_GIB | Disk thresholds and media start free-space floor |
 | SERVICE_MEMORY, SERVICE_CPUS | Global defaults for services without dedicated overrides |
 | POSTGRES_MEMORY, AUTHENTIK_MEMORY, JELLYFIN_MEMORY, MEDIA_SERVICE_MEMORY, N8N_MEMORY | Optional stack-specific container memory overrides in .env |
+| JELLYFIN_PUBLIC_ENABLED | Default no; opt-in direct Jellyfin HTTPS on dedicated TCP 9443, with separate router forwarding and pinned DDNS setup; see [remote access](remote-access.md#direct-public-jellyfin-https-opt-in) |
 | STACK_START_TIMEOUT | Compose startup wait in seconds, default 600; containers are recreated to refresh binds |
 | AI_MEMORY, AI_CPUS, WEBUI_MEMORY | AI workload caps; explicit activation still required |
 | N8N_HISTORY_HOURS | Execution retention, 168 hours by default |

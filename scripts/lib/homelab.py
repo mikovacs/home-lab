@@ -108,6 +108,8 @@ def configuration_directory(c, canonical=True):
 
 def validate_paths(c, check_config_canonical=True):
     configured_profiles(c)
+    require(c.get('JELLYFIN_PUBLIC_ENABLED', 'no') in ('yes', 'no'),
+            'JELLYFIN_PUBLIC_ENABLED must be yes or no')
     names = ('REPO_ROOT','APPDATA_ROOT','SECRETS_ROOT','RUNTIME_ROOT','DATA_ROOT','MEDIA_ROOT')
     paths = [safe_path(c[n]) for n in names]
     cfg = configuration_directory(c, canonical=check_config_canonical)
@@ -315,6 +317,15 @@ def render(c):
         'address':'http://server:9000/outpost.goauthentik.io/auth/traefik',
         'trustForwardHeader':False,'authRequestHeaders':['Cookie']}}
     dynamic = {'http':{'middlewares':middlewares,'routers':{},'services':{}}}
+    require(c.get('JELLYFIN_PUBLIC_ENABLED', 'no') in ('yes', 'no'),
+            'JELLYFIN_PUBLIC_ENABLED must be yes or no')
+    if c.get('JELLYFIN_PUBLIC_ENABLED', 'no') == 'yes':
+        dynamic['http']['routers']['jellyfin-public'] = {
+            'entryPoints': ['jellyfin-public'], 'rule': 'Host(`jellyfin.' + c['DOMAIN'] + '`)',
+            'tls': {'certResolver': 'cloudflare'},
+            'service': 'jellyfin-public', 'middlewares': ['headers@file']}
+        dynamic['http']['services']['jellyfin-public'] = {
+            'loadBalancer': {'servers': [{'url': 'http://jellyfin:8096'}]}}
     allowed = {'auth':('http://server:9000',[]),'home':('http://homepage:3000',['sso@file']),
                'files':('http://files:8080',[]),'radarr':('http://radarr:7878',['sso@file']),
                'sonarr':('http://sonarr:8989',['sso@file']),'prowlarr':('http://prowlarr:9696',['sso@file']),

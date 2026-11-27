@@ -45,6 +45,10 @@ for binary in ('iptables','ip6tables'):
     # Only inspect inbound NEW flows whose original destination is a published host port.
     # Internal container egress and bridge-to-bridge flows are returned untouched.
     if binary=='iptables':
+        if c.get('JELLYFIN_PUBLIC_ENABLED', 'no') == 'yes':
+            # Router WAN TCP 443 -> LAN_IP:9443, never the shared 443/8443 listeners.
+            rule('-A','HL-DOCKER','-p','tcp','--dport','9443','-m','conntrack',
+                 '--ctorigdst',c['LAN_IP'],'--ctorigdstport','9443','-j','RETURN')
         for proto,ports in [('tcp','53,80,443,8096,6881'),('udp','53,6881')]:
             rule('-A','HL-DOCKER','-s',lan,'-p',proto,'-m','multiport','--dports',ports,'-j','RETURN')
         for cidr in admins:

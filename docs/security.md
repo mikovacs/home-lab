@@ -1,10 +1,12 @@
 # Security model
 
-No public inbound forwarding is required. Bind host ports to a selected LAN IPv4, use source restrictions for private administration, keep databases unpublished and default tunnel allowlist empty. Preserve SSH by LAN IP and console recovery. ADMIN_CIDRS must reflect actual administrator devices/subnets; do not use 0.0.0.0/0. Application MFA belongs in Authentik; recovery basic auth is a separate protected path.
+By default no public inbound forwarding is required. The optional [direct Jellyfin endpoint](remote-access.md#direct-public-jellyfin-https-opt-in) requires a separately reviewed TCP 443-to-9443 router forward. Bind host ports to a selected LAN IPv4, use source restrictions for private administration, keep databases unpublished and default tunnel allowlist empty. Preserve SSH by LAN IP and console recovery. ADMIN_CIDRS must reflect actual administrator devices/subnets; do not use 0.0.0.0/0. Application MFA belongs in Authentik; recovery basic auth is a separate protected path.
 
 ## Firewall
 
 `configure-firewall` installs dedicated iptables/ip6tables chains without flushing unrelated tables. Host INPUT permits loopback, established flows, SSH from ADMIN_CIDRS, necessary ICMP, LAN DHCP client replies and Tailscale UDP, plus SSH arriving only from the dedicated terminal bridge, then drops. Docker-published IPv4 traffic is restricted in DOCKER-USER using original destination LAN_IP: LAN peers may reach documented ports; IPv4 ADMIN_CIDRS may reach HTTP/HTTPS and DNS (TCP/UDP 53). DNS requires an explicitly allowed source; use administrator device /32 addresses rather than the whole Tailscale range. IPv6 input is restricted and new forwarded traffic arriving on the configured physical NIC is denied. No IPv6 container publishing is supported. Preserve Docker's iptables backend; do not combine this design with UFW assumptions or Docker nftables backend.
+
+When `JELLYFIN_PUBLIC_ENABLED=yes`, a separate IPv4 rule permits TCP traffic whose original host destination and translated container port are both 9443. It never opens shared 443/8443 or native 8096 to Internet sources. This requires the dedicated hostname-only Traefik route; do not repurpose that listener.
 
 Test firewall from a second allowed SSH session before enabling persistence. Keep console access. It intentionally does not enable Samba, alternate SSH ports, DHCP serving or subnet routing. Add explicit reviewed rules for those features. Existing firewall chains may further restrict traffic. For recovery remove only the jump to the HomeLab custom chain from console and diagnose; never flush Docker rules. The service reapplies on Docker startup/restart; verify after host upgrades.
 

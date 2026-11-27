@@ -67,6 +67,12 @@ def _check(temporary):
             assert not obj['services']['socket-proxy'].get('ports')
             assert obj['services']['socket-proxy']['environment']['POST']=='0'
             assert '--providers.docker.exposedbydefault=false' in obj['services']['traefik']['command']
+            commands = obj['services']['traefik']['command']
+            assert '--entrypoints.websecure.asdefault=true' in commands
+            assert '--entrypoints.jellyfin-public.address=:9443' in commands
+            assert '--entrypoints.jellyfin-public.forwardedheaders.insecure=false' in commands
+            ports = obj['services']['traefik']['ports']
+            assert any(p['target'] == 9443 and p['published'] == '9443' and p['host_ip'] == c['LAN_IP'] for p in ports)
             networks = obj['services']['traefik']['networks']
             assert networks['proxy']['aliases'] == ['auth.' + c['DOMAIN']]
             assert not networks['discovery'].get('aliases')

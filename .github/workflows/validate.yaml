@@ -25,6 +25,8 @@ jobs:
         run: make validate
       - name: Safety regression tests
         run: make test
+      - name: Isolated reverse proxy routing regression
+        run: python3 -B tests/runtime_routes.py
       - name: Shell validation
         run: |
           shellcheck install.sh scripts/*.sh

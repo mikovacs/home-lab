@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the public Jellyfin IPv4 every five minutes
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=20s
+Unit=homelab-jellyfin-ddns.service
+[Install]
+WantedBy=timers.target
