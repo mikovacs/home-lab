@@ -51,6 +51,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       ENABLE_SIGNUP: 'false'
       ENABLE_OPENAI_API: 'false'
+      ENABLE_OAUTH_PERSISTENT_CONFIG: 'true'
     secrets:
     - webui-secret-key
     volumes:

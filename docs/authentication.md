@@ -32,7 +32,11 @@ Radarr 7 supports one native OIDC user. Create a separate confidential OAuth2/Op
 
 For FileBrowser, create a confidential authorization-code provider with callback `https://files.DOMAIN/api/auth/oidc/callback`, slug `files`, scopes `openid/profile/email` and a groups claim. Store `clientId`/`clientSecret` in protected `SECRETS_ROOT/files-oidc.json`. Run `make render` with the selected host environment and redeploy storage. The renderer restricts allowed groups, retains password recovery and leaves personal-source grants explicit; shared access is granted to authenticated users. Verify actual per-user permissions.
 
-Open WebUI OIDC is not preconfigured. Follow its upstream OAuth documentation, protect client secrets, restrict signup/groups and review removal of ForwardAuth from both local and remote AI routers. The shipped default remains ForwardAuth plus native login.
+Open WebUI OIDC is not preconfigured. `ENABLE_OAUTH_PERSISTENT_CONFIG=true` allows its administrator to configure OAuth under **Admin Settings > Authentication** and retain those settings in the application database across container recreation. The flag does not create an identity provider, enable OAuth signup or grant access to users. The shipped default remains ForwardAuth plus native login.
+
+For native OIDC, create a separate confidential Authentik provider with a restricted user/group binding and strict callback `https://ai.DOMAIN/oauth/oidc/callback`. In Open WebUI, enter the provider's discovery URL, client ID, client secret, that callback and scopes `openid email profile`; restart WebUI after saving provider connection settings. Retain the native recovery login and keep new users pending until their access is deliberately approved. Linking an existing account by email requires a trusted identity provider and a verified matching email; do not enable unrestricted account merging. Keep both local and remote ForwardAuth protections during initial setup and test the complete login flow before reviewing any removal.
+
+The client secret is stored in Open WebUI's external application database, so protect its appdata and backups as credentials; never put it in Git or diagnostic output. See the [upstream SSO documentation](https://docs.openwebui.com/features/authentication-access/auth/sso/) and [pinned configuration implementation](https://github.com/open-webui/open-webui/blob/v0.13.5/backend/open_webui/config.py).
 
 ## Bootstrap and recovery
 

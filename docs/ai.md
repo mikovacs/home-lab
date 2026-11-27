@@ -26,7 +26,7 @@ Use the external bootstrap override instead (adapt paths to your host):
 
 4. Verify the native administrator login locally. Remove only those two temporary bootstrap files, then run `sudo env HOMELAB_ENV_FILE=/etc/homelab/host.env make deploy-ai` to recreate the ordinary service without bootstrap credentials. Keep signup disabled and confirm the stored UI setting before remote publication.
 
-The [pinned startup code](https://github.com/open-webui/open-webui/blob/v0.13.5/backend/open_webui/main.py) creates this administrator only when no user exists; it does not reset an existing account. Confirm the first login before enabling access for other users. A persistent WEBUI_SECRET_KEY is exported from its protected file by the entrypoint. ForwardAuth gates the UI; native session/user roles still apply. Native OIDC requires a separately reviewed configuration; see [authentication](authentication.md).
+The [pinned startup code](https://github.com/open-webui/open-webui/blob/v0.13.5/backend/open_webui/main.py) creates this administrator only when no user exists; it does not reset an existing account. Confirm the first login before enabling access for other users. A persistent WEBUI_SECRET_KEY is exported from its protected file by the entrypoint. ForwardAuth gates the UI; native session/user roles still apply. The ordinary service enables persistent OAuth configuration so an administrator can save native OIDC settings in the application database without retaining the bootstrap override. Native OIDC still requires a separately reviewed configuration; see [authentication](authentication.md).
 
 ## Internal API and documents
 

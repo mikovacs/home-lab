@@ -61,6 +61,14 @@ def _check(temporary):
             assert dockge['environment']['DOCKGE_STACKS_DIR']==view
             assert any(v['source']==view and v['target']==view and v['read_only'] for v in dockge['volumes'])
             assert any(v['source']==str(root) and v['target']==str(root) and v['read_only'] for v in dockge['volumes'])
+        if stack=='ai':
+            webui=obj['services']['webui']
+            assert webui['environment']['ENABLE_OAUTH_PERSISTENT_CONFIG']=='true'
+            assert webui['environment']['ENABLE_SIGNUP']=='false'
+            assert not any(key.startswith(('WEBUI_ADMIN_', 'OAUTH_CLIENT_')) for key in webui['environment'])
+            assert not webui.get('ports')
+            assert webui['labels']['traefik.http.routers.ai.middlewares']=='headers@file,sso@file'
+            assert webui['depends_on']['data-guard']['condition']=='service_completed_successfully'
     for workflow in (root/'config/n8n/workflows').glob('*.json'):
         w=json.loads(workflow.read_text())
         assert w['active'] is False
