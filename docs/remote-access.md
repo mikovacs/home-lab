@@ -23,7 +23,7 @@ The wizard verifies each local HTTPS origin with a GET request, checks all DNS c
 
 Use console option `d` to close local remote routes. Removed names can retain DNS records but return local 404. For manual route changes, select the same host environment, render, validate ingress and recreate cloudflared; restarting alone may not apply changed Compose settings.
 
-Plex streaming, Dockge, terminal, Beszel, Traefik dashboard, AdGuard, SSH and databases cannot be selected. Use private access for administration and Plex-compatible devices. Native Plex direct remote access needs separate router, authentication and licensing review. Review Cloudflare terms before traffic-heavy publication.
+Jellyfin streaming, Dockge, terminal, Beszel, Traefik dashboard, AdGuard, SSH and databases cannot be selected. Use private access for administration and separately configured media access.
 
 ## Interrupted provider operations
 
@@ -44,3 +44,11 @@ Restrict tailnet grants to the administrator devices and the server's required H
 The optional ttyd container runs an SSH client as UID 1000. Provision a dedicated non-root SSH target and independently verified host key. Under `SECRETS_ROOT/terminal-ssh`, store `id_ed25519` and `known_hosts`, readable by UID 1000, directory 0700/files 0600. Keep the parent root-only and never reuse your main admin private key.
 
 Set `ADMIN_SSH_USER/HOST`, then use `make deploy-remote-access` with the selected host environment. Private IP rules and basic auth protect ttyd; SSH uses strict host-key checking. Its dedicated `TERMINAL_BRIDGE` receives the host SSH exception and is its default gateway, requiring Compose 2.33.1+. The bridge name must differ from the physical NIC. SSH by numeric LAN IP remains the recovery path.
+
+## Jellyfin streaming
+
+The native app connects to the server URL you configure. It does not automatically bypass a tunnel when playback begins. Keep Jellyfin out of the public Cloudflare Tunnel routes: Cloudflare's [Tunnel FAQ](https://developers.cloudflare.com/cloudflare-one/faq/cloudflare-tunnels-faq/) explains the paid-service requirements for video through public hostname routes. DNS-only records are different from proxied/tunnel traffic.
+
+For personal mobile devices, use [Tailscale](https://jellyfin.org/docs/general/post-install/networking/tailscale/) and the existing private route to `LAN_IP`, restricted DNS and the local `https://jellyfin.DOMAIN` endpoint. Each client needs enrollment and explicit grants; do not grant family playback devices SSH or private administration merely to enable streaming. Tailscale attempts a direct encrypted connection and can fall back to a relay, so verify actual throughput. Adding a device does not automatically extend this installation's existing grants or firewall source allowlist.
+
+For remote TVs or users without a VPN client, separately configure a public HTTPS reverse proxy with Jellyfin native authentication. Direct home hosting requires a reachable public address, appropriate DNS (DNS-only if hosted at Cloudflare), router forwarding and narrowly scoped firewall/proxy exposure. CGNAT may prevent this; a separately hosted reverse proxy with a private backend connection is another option. Do not simply forward the existing shared Traefik entrypoint, which also serves other local applications. This configuration does not enable any public media endpoint automatically.

@@ -41,38 +41,40 @@ services:
     - ALL
     network_mode: none
     user: ${PUID}:${PGID}
-  # LinuxServer images provide s6 as PID 1; Docker init would prevent startup.
-  plex:
+  jellyfin:
     restart: 'no'
-    init: false
+    init: true
     stop_grace_period: 45s
     security_opt: *id001
+    cap_drop:
+    - ALL
     logging: *id002
-    mem_limit: ${PLEX_MEMORY:-2g}
+    mem_limit: ${JELLYFIN_MEMORY:-2g}
     cpus: ${SERVICE_CPUS:-1.0}
-    image: lscr.io/linuxserver/plex:1.43.5.11079-b3b13e506-ls334
+    image: ghcr.io/jellyfin/jellyfin:12.4
+    user: ${PUID}:${PGID}
     environment:
-      PUID: ${PUID}
-      PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: '002'
-      VERSION: docker
     volumes:
     - type: bind
-      source: ${APPDATA_ROOT}/plex
+      source: ${APPDATA_ROOT}/jellyfin
       target: /config
-      read_only: false
       bind:
         create_host_path: false
     - type: bind
-      source: ${MEDIA_ROOT}
-      target: /data
-      read_only: true
+      source: ${RUNTIME_ROOT}/jellyfin-cache
+      target: /cache
       bind:
         create_host_path: false
     - type: bind
       source: /dev/disk/by-uuid/${MEDIA_UUID}
       target: /run/expected-media-device
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: ${MEDIA_ROOT}
+      target: /data
       read_only: true
       bind:
         create_host_path: false
@@ -85,14 +87,21 @@ services:
     labels:
       traefik.enable: 'true'
       traefik.docker.network: ${PROXY_NETWORK}
-      traefik.http.routers.plex.rule: Host(`plex.${DOMAIN}`)
-      traefik.http.routers.plex.entrypoints: websecure
-      traefik.http.routers.plex.tls: 'true'
-      traefik.http.routers.plex.tls.certresolver: cloudflare
-      traefik.http.routers.plex.middlewares: headers@file
-      traefik.http.services.plex.loadbalancer.server.port: '32400'
+      traefik.http.routers.jellyfin.rule: Host(`jellyfin.${DOMAIN}`)
+      traefik.http.routers.jellyfin.entrypoints: websecure
+      traefik.http.routers.jellyfin.tls: 'true'
+      traefik.http.routers.jellyfin.tls.certresolver: cloudflare
+      traefik.http.routers.jellyfin.middlewares: headers@file
+      traefik.http.services.jellyfin.loadbalancer.server.port: '8096'
     ports:
-    - ${LAN_IP}:32400:32400
+    - ${LAN_IP}:8096:8096/tcp
+    healthcheck:
+      test: [CMD, curl, -f, --max-time, '5', http://127.0.0.1:8096/health]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+  # LinuxServer images provide s6 as PID 1; Docker init would prevent startup.
   radarr:
     restart: 'no'
     init: false

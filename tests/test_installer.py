@@ -103,7 +103,7 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(),original)
 
     def test_private_hosts_and_missing_identity_route_cannot_be_selected(self):
-        for name in ('terminal', 'docker', 'traefik', 'adguard', 'monitor', 'plex', 'postgres', 'home'):
+        for name in ('terminal', 'docker', 'traefik', 'adguard', 'monitor', 'plex', 'jellyfin', 'postgres', 'home'):
             with self.subTest(name=name), self.assertRaises(h.SafetyError): ui.selected_apps(name)
         self.assertEqual(ui.selected_apps('auth,home,hooks'), ['auth', 'home', 'hooks'])
         self.assertEqual(ui.selected_apps('none'), [])

@@ -140,7 +140,7 @@ def main():
             for host in ('auth.audit.test', 'AUTH.audit.test', 'auth.audit.test.', 'auth.audit.test:443'):
                 assert status(host) == 204, host
             for host in ('docker.audit.test', 'terminal.audit.test', 'traefik.audit.test', 'adguard.audit.test',
-                         'monitor.audit.test', 'plex.audit.test', 'auth.audit.test.evil.test', 'evil.test'):
+                         'monitor.audit.test', 'plex.audit.test', 'jellyfin.audit.test', 'auth.audit.test.evil.test', 'evil.test'):
                 for path in ('/', '/outpost.goauthentik.io/ping'):
                     assert status(host, path, {'X-Forwarded-Host': 'auth.audit.test', 'X-Forwarded-For': '127.0.0.1'}) == 404, (host, path)
             assert status('hooks.audit.test', '/webhook/probe') == 204

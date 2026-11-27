@@ -18,7 +18,7 @@
 | Import copies instead of links | All download/import apps need one /data parent mount, same filesystem, permissions and hardlink option. Compare known file inodes read-only. |
 | Container unhealthy/stopped after backup | Check journal and make status. Missing mounts block safe restart; validate and redeploy explicitly. |
 | Backup full or failed | Inspect Restic repository, free capacity, offline keys, stopped-service restart results and timer logs. Verify a restore before retention prune. |
-| AI OOM / Plex stutter | Stop AI, measure memory pressure, choose smaller model or lower concurrency. The installer does not pull or upgrade Ollama models. |
+| AI OOM / Jellyfin stutter | Stop AI, measure memory pressure, choose smaller model or lower concurrency. The installer does not pull or upgrade Ollama models. |
 | Beszel shows no host | Install the version-matched host agent with verified key/token and transport; hub alone is not a collector. |
 | Beszel public key is empty and Add System does not save | Verify the route uses `private@file,headers@file,beszel-sso@file` and the admin-only `homelab-monitor` provider is provisioned. BasicAuth conflicts with PocketBase's `Authorization` token. Follow the migration in [monitoring](monitoring.md); do not expose the API anonymously. |
 | Dockge changed YAML | Compare files with the recorded release; resolve edits through a reviewed release before further deployment. Do not discard changes to bypass integrity checks. |

@@ -31,7 +31,7 @@ To diagnose an OIDC connection from Radarr, run `docker exec homelab-media-radar
 
 Traefik binds LAN_IP:80 and :443, redirects HTTP to HTTPS and uses Cloudflare DNS-01 (no inbound ACME port needed). DNS token scope is limited to the intended zone. Local clients use split DNS and go directly to LAN HTTPS. The wizard selects production ACME; the example environment selects staging, whose certificates are intentionally untrusted. The dashboard is private and basic-authenticated; insecure dashboard mode is never enabled.
 
-Ports: DNS 53 tcp/udp on LAN only, HTTPS 443/redirect 80, Plex 32400, qBittorrent peer 6881 tcp/udp. AdGuard setup 3001 and Authentik recovery 9000 are loopback-only. No PostgreSQL, Ollama, Docker API or public terminal host ports. qBittorrent's web interface is routed separately from peer traffic. Set torrent listen port consistently if changing the published peer port; no router mapping is automated.
+Ports: DNS 53 tcp/udp on LAN only, HTTPS 443/redirect 80, Jellyfin TCP 8096 (LAN sources only; use local HTTPS for authorized Tailscale clients), qBittorrent peer 6881 tcp/udp. AdGuard setup 3001 and Authentik recovery 9000 are loopback-only. No PostgreSQL, Ollama, Docker API or public terminal host ports. qBittorrent's web interface is routed separately from peer traffic. Set torrent listen port consistently if changing the published peer port; no router mapping is automated.
 
 ## Remote routing
 

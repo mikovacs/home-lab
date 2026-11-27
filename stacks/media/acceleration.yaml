@@ -1,5 +1,5 @@
 services:
-  plex:
+  jellyfin:
     devices:
     - ${DRI_PATH:-/dev/dri}:/dev/dri
     group_add:

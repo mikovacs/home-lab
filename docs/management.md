@@ -6,7 +6,7 @@ Open `https://home.DOMAIN` after the management stack is started. Homepage links
 
 Configuration is generated under `RUNTIME_ROOT/homepage`. `make render` regenerates it, so keep permanent nonsecret layout changes in the renderer. Homepage has no Docker socket and cannot read personal file contents.
 
-Optional API widget examples are in `config/homepage/widgets.example.yaml`. Supply credentials through protected configuration, never Git. Widgets use internal service addresses and native API tokens; do not send them through browser SSO. A Plex widget requires a Plex token with access to that account.
+Optional API widget examples are in `config/homepage/widgets.example.yaml`. Supply credentials through protected configuration, never Git. Widgets use internal service addresses and native API tokens; do not send them through browser SSO. A Jellyfin widget requires a protected native API key.
 
 ## FileBrowser Quantum
 
@@ -40,7 +40,7 @@ After updating a release that changes Dockge discovery, run `make render` with t
 
 Dockge 1.5.0 marks a whole stack `exited` if any container has exited. A one-shot `mount-guard` or `data-guard` that completed with exit code 0 therefore produces this label even when all application containers run. Inspect individual container states and the guard exit code before treating it as a failure. Never remove the guards to change this label. An unexpected nonzero exit is a failure and needs investigation.
 
-The production source is mounted read-only. Make Compose changes in development, publish a reviewed release, then update through the installer. Dockge's normal file discovery does not enable optional overrides such as Plex acceleration.
+The production source is mounted read-only. Make Compose changes in development, publish a reviewed release, then update through the installer. Dockge's normal file discovery does not enable optional overrides such as Jellyfin acceleration.
 
 After a source release is replaced, recreate Dockge explicitly with its admin profile so its directory bind points to the new source. Keep `REPO_ROOT` and the stack paths consistent inside and outside the container. See [releases](releases.md) and [security](security.md).
 

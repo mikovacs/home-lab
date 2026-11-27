@@ -11,7 +11,7 @@ Enroll your MFA device, retain offline recovery material, create a named adminis
 | Authentik | Native accounts and MFA |
 | Homepage | ForwardAuth; `homelab-users` or `homelab-admins` |
 | Radarr, Sonarr, Prowlarr, qBittorrent, optional Bazarr | Admin-group ForwardAuth; retain native login/API keys |
-| Plex | Plex native authentication |
+| Jellyfin | Native accounts and Quick Connect; no blanket ForwardAuth on native client requests |
 | FileBrowser Quantum | Native accounts; optional native OIDC configured separately |
 | n8n editor | Native owner plus `automation-users`/admin ForwardAuth |
 | n8n production webhooks | Workflow authentication; no interactive SSO |
@@ -29,7 +29,7 @@ Beszel's PocketBase API uses `Authorization` for its native token, which conflic
 
 ## Optional native OIDC
 
-ForwardAuth controls access to an application but does not automatically sign in to its native account. Prefer native OIDC where supported; applications with an explicit external-authentication mode can delegate browser authentication to the proxy after verifying every access path is protected. Never use a blanket LAN or shared-container-subnet authentication bypass. Internal API credentials remain separate, server-managed secrets. The free n8n Community edition retains its native account because SSO is not included; Plex retains its Plex account. Recovery credentials must remain available independently of Authentik.
+ForwardAuth controls access to an application but does not automatically sign in to its native account. Prefer native OIDC where supported; applications with an explicit external-authentication mode can delegate browser authentication to the proxy after verifying every access path is protected. Never use a blanket LAN or shared-container-subnet authentication bypass. Internal API credentials remain separate, server-managed secrets. The free n8n Community edition retains its native account because SSO is not included; Jellyfin retains native accounts for app compatibility; Authentik integration requires a separately reviewed compatible plugin/client flow. Recovery credentials must remain available independently of Authentik.
 
 Radarr 7 supports one native OIDC user. Create a separate confidential OAuth2/OpenID application with slug `radarr-oidc`, an allowed-user binding, an available signing key, and subject mode **Based on the User's Email**. Use strict authorization redirect `https://radarr.DOMAIN/signin-oidc` and strict post-logout redirect `https://radarr.DOMAIN/signout-callback-oidc`. Keep the existing HomeLab ForwardAuth application. Configure Radarr with authentication **OIDC**, authentication required **Enabled**, authority `https://auth.DOMAIN/application/o/radarr-oidc/`, the new provider's client ID and secret, the selected user's exact email, and scopes `openid profile email`. Keep the client secret outside Git and chat logs. Verify discovery returns HTTP 200 from inside Radarr before saving, then test fresh sign-in and rejection of another user. See the [Authentik Radarr integration](https://integrations.goauthentik.io/media/radarr/) and [container DNS path](networking.md).
 

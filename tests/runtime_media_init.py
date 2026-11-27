@@ -3,7 +3,7 @@
 
 Run: python3 tests/runtime_media_init.py
 Uses native images, unique containers, tmpfs state, no network or host binds.
-This checks application HTTP startup, not physical storage or Plex playback.
+This checks application HTTP startup, not physical storage or library playback.
 """
 import copy
 import json
@@ -21,7 +21,7 @@ import homelab as h
 
 ENDPOINTS = {'sonarr': (8989, '/'), 'radarr': (7878, '/'),
              'prowlarr': (9696, '/'), 'qbittorrent': (8080, '/'),
-             'plex': (32400, '/identity'), 'bazarr': (6767, '/')}
+             'bazarr': (6767, '/')}
 
 
 def main():
@@ -40,8 +40,6 @@ def main():
             svc.pop(field, None)
         svc.update(platform=platform, network_mode='none',
                    tmpfs=['/config:rw,mode=0755', '/data:rw,mode=0755'])
-        # Match production read-only Plex media without mounting any host data.
-        if key == 'plex': svc['tmpfs'][1] = '/data:ro,mode=0755'
         services[key] = svc
     services['broken-sonarr'] = copy.deepcopy(services['sonarr'])
     services['broken-sonarr']['init'] = True

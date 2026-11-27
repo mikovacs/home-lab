@@ -45,6 +45,24 @@ def _check(temporary):
                 data=[v for v in s['volumes'] if v['target']=='/data']
                 assert len(data)==1 and data[0]['source']==c['MEDIA_ROOT']
                 assert s['depends_on']['mount-guard']['condition']=='service_completed_successfully'
+            jellyfin=obj['services']['jellyfin']
+            assert not jellyfin.get('profiles')
+            assert 'plex' not in obj['services']
+            assert jellyfin['user']==c['PUID']+':'+c['PGID']
+            assert jellyfin['cap_drop']==['ALL']
+            assert jellyfin['depends_on']['mount-guard']['condition']=='service_completed_successfully'
+            assert set(jellyfin['networks'])=={'media','proxy'}
+            assert jellyfin['labels']['traefik.http.routers.jellyfin.entrypoints']=='websecure'
+            assert jellyfin['labels']['traefik.http.routers.jellyfin.middlewares']=='headers@file'
+            assert len(jellyfin['ports'])==1
+            assert jellyfin['ports'][0]['host_ip']==c['LAN_IP']
+            assert jellyfin['ports'][0]['target']==8096
+            mounts={v['target']:v for v in jellyfin['volumes']}
+            assert mounts['/data']['source']==c['MEDIA_ROOT'] and mounts['/data']['read_only']
+            assert mounts['/config']['source']==c['APPDATA_ROOT']+'/jellyfin'
+            assert mounts['/cache']['source']==c['RUNTIME_ROOT']+'/jellyfin-cache'
+            assert mounts['/run/expected-media-device']['source']=='/dev/disk/by-uuid/'+c['MEDIA_UUID']
+            assert mounts['/run/expected-media-device']['read_only']
         if stack=='infrastructure':
             assert not obj['services']['socket-proxy'].get('ports')
             assert obj['services']['socket-proxy']['environment']['POST']=='0'
@@ -80,11 +98,13 @@ def _check(temporary):
             assert all(svc['restart']=='no' for svc in obj['services'].values())
     # The same external environment activates profiles in plain Compose/Dockge.
     for profiles in ('', 'bazarr,admin'):
-        for stack, optional in (('media', 'bazarr'), ('management', 'dockge')):
+        for stack, optional, profile in (('media', 'bazarr', 'bazarr'),
+                                         ('management', 'dockge', 'admin')):
             raw=subprocess.check_output(['docker','compose','--env-file',str(root/'.env.example'),
                 '-f',str(root/'stacks'/stack/'compose.yaml'),'config','--services'],
                 env={**env,'COMPOSE_PROFILES':profiles},text=True)
-            assert (optional in raw.split()) == bool(profiles), (stack, profiles)
+            if stack=='media': assert 'jellyfin' in raw.split() and 'plex' not in raw.split()
+            assert (optional in raw.split()) == (profile in profiles.split(',')), (stack, profiles)
     for workflow in (root/'config/n8n/workflows').glob('*.json'):
         w=json.loads(workflow.read_text())
         assert w['active'] is False

@@ -29,12 +29,13 @@ python3 tests/runtime_storage.py
 python3 tests/runtime_bind_refresh.py
 python3 tests/runtime_authentik_hash.py
 python3 tests/runtime_media_init.py
+python3 tests/runtime_jellyfin.py
 ```
 
 They use disposable projects and temporary files, then remove their own resources. They check proxy routing with stub origins, refusal to start on invalid/missing storage, container bind refresh after source replacement, Authentik password hashing before PostgreSQL exists, and LinuxServer PID 1/HTTP startup with disposable state. They do not use real media, credentials or provider accounts, and do not replace the [installation checks](installation-checks.md) on the server.
 
 The routing test also checks Docker DNS resolution of the identity hostname and local HTTPS reachability before and after remote access is disabled. It uses a stub identity origin and an unverified test certificate, so it does not validate real OIDC flows or production certificate trust.
 
-The media startup test uses the Docker daemon's native architecture, no external network and tmpfs application state. Run it on the target architecture when validating that platform; an emulated Plex binary may fail before application startup.
+The media startup test uses the Docker daemon's native architecture, no external network and tmpfs application state. Run it on the target architecture when validating that platform; emulation is not proof of target-host compatibility. The Jellyfin test checks non-root startup, read-only media and clean shutdown with disposable state.
 
 See [adding a service](adding-services.md) for implementation requirements and [releases](releases.md) for packaging. CI validates and packages; it never deploys.

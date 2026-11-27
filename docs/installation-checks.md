@@ -16,7 +16,7 @@ Complete these checks on the server before relying on it. Skip optional features
 - Enroll Authentik MFA, save recovery material and test both an allowed and a denied account.
 - Complete each application's native owner setup. No initial-registration page should be publicly reachable.
 - Check FileBrowser personal/shared permissions with a harmless test file.
-- Confirm Plex reads the existing library. Test download/import hardlinks only with an expendable file, not the collection.
+- Confirm Jellyfin reads the existing library. Test download/import hardlinks only with an expendable file, not the collection.
 - Check n8n webhook authentication before activating workflows. Keep unconfigured examples inactive.
 - Configure availability, disk and backup alerts. Check the Beszel host agent if enabled.
 

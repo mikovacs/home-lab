@@ -1,9 +1,9 @@
 # Fragments only. Place secrets in protected Homepage-supported env/file substitutions.
 # Add one widget to the corresponding rendered service entry; never commit tokens.
-plex:
-  type: plex
-  url: http://plex:32400
-  key: '{{HOMEPAGE_VAR_PLEX_TOKEN}}'
+jellyfin:
+  type: jellyfin
+  url: http://jellyfin:8096
+  key: '{{HOMEPAGE_VAR_JELLYFIN_KEY}}'
 radarr:
   type: radarr
   url: http://radarr:7878

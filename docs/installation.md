@@ -72,7 +72,7 @@ Do not create a second configuration with divergent values. Choosing a custom da
 
 ## Personal checks and failures
 
-You still complete MFA enrollment/recovery, allowed/denied-user tests, router DHCP, Plex claim/libraries and other applications' native owners/API keys. Optional Tailscale, Beszel agent, Samba and terminal SSH keys require their documented manual setup. Open WebUI starts with signup disabled: use the external first-owner bootstrap override in [AI onboarding](ai.md) before publishing it. Backup scheduling requires a successful staged restore confirmation.
+You still complete MFA enrollment/recovery, allowed/denied-user tests, router DHCP, Jellyfin owner/libraries and other applications' native owners/API keys. Optional Tailscale, Beszel agent, Samba and terminal SSH keys require their documented manual setup. Open WebUI starts with signup disabled: use the external first-owner bootstrap override in [AI onboarding](ai.md) before publishing it. Backup scheduling requires a successful staged restore confirmation.
 
 Missing mounts, secrets, conflicting provider records or failed TLS checks stop the affected step without deleting existing state. Never create media directories under an unmounted path. Ambiguous tunnel creation and partial DNS publication need the [remote-access recovery procedure](remote-access.md). Failed backups block source updates; source updates do not automatically redeploy applications.
 

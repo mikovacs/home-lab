@@ -33,8 +33,8 @@ STACK_SECRETS = {'infrastructure': ('cloudflare-dns-token', 'admin-htpasswd'),
                  'monitoring': ('admin-htpasswd',)}
 APPS = {'traefik': 0, 'adguard-conf': 0, 'adguard-work': 0,
         'authentik-postgres': 70, 'authentik-data': 1000, 'authentik-templates': 1000,
-        'n8n-postgres': 70, 'n8n': 1000, 'plex': None, 'radarr': None, 'sonarr': None,
-        'prowlarr': None, 'qbittorrent': None, 'bazarr': None, 'files': None,
+        'n8n-postgres': 70, 'n8n': 1000, 'radarr': None, 'sonarr': None,
+        'prowlarr': None, 'qbittorrent': None, 'bazarr': None, 'jellyfin': None, 'files': None,
         'kuma': 0, 'beszel': 0, 'homepage': None, 'dockge': 0, 'webui': 0}
 
 
@@ -246,6 +246,7 @@ def prepare(c, dry=False):
     for sub in ('traefik','beszel','homepage','dumps','restore'):
         mkdir_new(Path(c['RUNTIME_ROOT'])/sub, int(c['PUID']) if sub=='homepage' else 0,
                   int(c['PGID']) if sub=='homepage' else 0, 0o755 if sub in ('traefik','beszel','homepage') else 0o700)
+    mkdir_new(Path(c['RUNTIME_ROOT'])/'jellyfin-cache', int(c['PUID']), int(c['PGID']))
     for stack in STACKS:
         p = ROOT/'stacks'/stack/'.env'
         if not p.exists() and not p.is_symlink():
@@ -322,7 +323,7 @@ def render(c):
                'hooks':('http://n8n:5678',[])}
     remote = [x.strip() for x in c['REMOTE_APPS'].split(',') if x.strip()]
     require(len(remote)==len(set(remote)), 'Duplicate remote application')
-    require(set(remote) <= set(allowed), 'Forbidden remote app (private admin and Plex cannot be exported)')
+    require(set(remote) <= set(allowed), 'Forbidden remote app (private admin and media streaming cannot be exported)')
     require(not remote or c['REMOTE_READY']=='yes' and c['IDENTITY_READY']=='yes', 'Complete identity/endpoint setup before remote exposure')
     ingress=[]
     for name in remote:
@@ -369,7 +370,7 @@ def render(c):
     atomic(runtime/'files.yaml',json.dumps(files,indent=2)+'\n',0o600)
     if os.geteuid()==0:os.chown(runtime/'files.yaml',int(c['PUID']),int(c['PGID']))
     services=[]
-    groups={'Media':['plex','radarr','sonarr','prowlarr','torrent'],'Storage':['files'],'Automation':['n8n'],
+    groups={'Media':['jellyfin','radarr','sonarr','prowlarr','torrent'],'Storage':['files'],'Automation':['n8n'],
             'Artificial intelligence':['ai'],'Monitoring':['status','monitor'],'Infrastructure':['auth','adguard','traefik'],'Administration':['docker','terminal']}
     for group,names in groups.items():
         services.append({group:[{n:{'href':f'https://{n}.{c["DOMAIN"]}','description':n}} for n in names]})

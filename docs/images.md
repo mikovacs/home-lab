@@ -9,7 +9,7 @@ Version pins live in Compose files, including the custom terminal's Dockerfile b
 | AdGuard Home | https://github.com/AdguardTeam/AdGuardHome/wiki/Docker |
 | Authentik | https://docs.goauthentik.io/install-config/install/docker-compose/ |
 | PostgreSQL | https://hub.docker.com/_/postgres |
-| Plex | https://docs.linuxserver.io/images/docker-plex/ |
+| Jellyfin | https://jellyfin.org/docs/general/installation/container/ and https://github.com/jellyfin/jellyfin/blob/v12.4/LICENSE (GPL-2.0) |
 | Radarr | https://docs.linuxserver.io/images/docker-radarr/ |
 | Sonarr | https://docs.linuxserver.io/images/docker-sonarr/ |
 | Prowlarr | https://docs.linuxserver.io/images/docker-prowlarr/ |
@@ -31,6 +31,6 @@ Version pins live in Compose files, including the custom terminal's Dockerfile b
 
 Beszel needs a separately configured host agent. Restic and Tailscale are host tools, not Compose images.
 
-Review licensing separately for Plex, n8n and Open WebUI, hosted service/account terms for Cloudflare and Tailscale, and each downloaded AI model. The repository's MIT license does not cover these dependencies. Paid features are not assumed by the shipped configuration.
+Review licensing separately for n8n and Open WebUI, hosted service/account terms for Cloudflare and Tailscale, and each downloaded AI model. The repository's MIT license does not cover these dependencies. Paid features are not assumed by the shipped configuration.
 
 Debian packages follow configured security updates. The terminal base is pinned, while apt package versions can advance at rebuild time; rebuild and review it regularly. Image pins and Compose validation do not prove runtime compatibility or absence of vulnerabilities.

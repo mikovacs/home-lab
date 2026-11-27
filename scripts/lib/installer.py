@@ -83,7 +83,7 @@ def selected_apps(value):
     if value.strip().lower() == 'none': return []
     names = [x.strip() for x in value.split(',') if x.strip()]
     h.require(len(names) == len(set(names)) and set(names) <= set(REMOTE),
-              'Select only listed remote application names; private administration/Plex are prohibited.')
+              'Select only listed remote application names; private administration/media streaming are prohibited.')
     h.require(not (set(names) - {'auth', 'hooks'}) or 'auth' in names,
               'Include auth so remote users can reach the identity provider.')
     return names
@@ -298,7 +298,7 @@ class Wizard:
         c = self.c()
         dns = json.loads((Path(c['SECRETS_ROOT']) / 'adguard-admin.json').read_text())
         if yes('Configure AdGuard native admin, chosen upstreams and exact split-DNS service names by local API?'):
-            names = list(REMOTE) + ['plex', 'bazarr', 'traefik', 'adguard', 'monitor', 'docker', 'terminal']
+            names = list(REMOTE) + ['jellyfin', 'bazarr', 'traefik', 'adguard', 'monitor', 'docker', 'terminal']
             adguard(AdGuardAPI(dns['username'], dns['password']), dns['username'], dns['password'],
                     c['DOMAIN'], c['LAN_IP'], names, dns['upstreams'])
             self.mark('dns-provisioned')
@@ -358,7 +358,7 @@ class Wizard:
             self.state['selected'] = sorted(set(self.state.get('selected', []) + [name]))
             self.mark('applications')
         print('\nLocal application setup checklist:')
-        print('Plex: sign in/claim server, add /data/media/movies and /data/media/tv; do not redownload or reorganize media.')
+        print('Jellyfin: create the native owner at http://LAN_IP:8096; add read-only /data/media/movies and /data/media/tv libraries. No redownload or reorganization.')
         print('*arr/qBittorrent: native login/API keys, movies/tv categories, one /data parent and hardlinks; no automatic destructive cleanup.')
         print('File manager, Kuma, Beszel and n8n: complete native owner setup and choose permissions/notification credentials.')
         print('AI (if selected): create the WebUI owner with the external bootstrap override in docs/ai.md; signup stays disabled. No Ollama model is pulled by the installer.')
@@ -401,7 +401,7 @@ class Wizard:
         self.require_step('identity', 'tunnel-credentials')
         c = self.c()
         print('Remote candidates:', ', '.join(REMOTE))
-        print('Never exported: Plex streaming, Dockge, terminal, Traefik dashboard, AdGuard, Beszel, SSH, databases.')
+        print('Never exported: Jellyfin streaming, Dockge, terminal, Traefik dashboard, AdGuard, Beszel, SSH, databases.')
         names = selected_apps(prompt('Exact app names to publish (none disables all)', c['REMOTE_APPS'] or ','.join(self.state.get('desired_remote_apps', []))))
         deployed = set(self.state.get('selected', [])) | {'identity', 'infrastructure'}
         h.require(all(REMOTE[name] in deployed for name in names), 'Start and configure each selected app stack first')

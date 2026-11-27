@@ -255,7 +255,7 @@ class SafetyTests(unittest.TestCase):
                 mounted.assert_called_once_with(self.c['DATA_ROOT'],self.c['DATA_UUID'])
 
     def test_private_services_cannot_enter_tunnel(self):
-        for remote in ('terminal,docker','monitor'):
+        for remote in ('terminal,docker','monitor','jellyfin','plex'):
             self.c.update(REMOTE_APPS=remote,REMOTE_READY='yes')
             with self.subTest(remote=remote),patch.object(h,'atomic') as write:
                 with self.assertRaises(h.SafetyError):h.render(self.c)
@@ -314,10 +314,13 @@ class SafetyTests(unittest.TestCase):
                                     ('100.103.106.43','DROP'),('198.51.100.20','DROP')]:
                 with self.subTest(protocol=protocol,source=source):
                     self.assertEqual(verdict(source,protocol,53),expected)
-        for protocol,port in [('tcp',443),('tcp',32400)]:
+        for protocol,port in [('tcp',443)]:
             self.assertEqual(verdict('100.103.106.42',protocol,port),'RETURN')
-        for protocol,port in [('udp',443),('tcp',5432),('tcp',2375),('udp',6881)]:
+        for protocol,port in [('tcp',8096),('tcp',32400),('udp',443),('tcp',5432),('tcp',2375),('udp',6881)]:
             self.assertEqual(verdict('100.103.106.42',protocol,port),'DROP')
+        self.assertEqual(verdict('10.2.3.20','tcp',8096),'RETURN')
+        self.assertEqual(verdict('198.51.100.20','tcp',8096),'DROP')
+        self.assertEqual(verdict('10.2.3.20','tcp',32400),'DROP')
         jump=next(cmd for cmd in commands if cmd[:4]==['iptables','-w','-I','DOCKER-USER'])
         self.assertEqual(jump[jump.index('--ctorigdst')+1],c['LAN_IP'])
         self.assertEqual(jump[jump.index('--ctstate')+1],'NEW')

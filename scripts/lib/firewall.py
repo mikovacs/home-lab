@@ -45,11 +45,11 @@ for binary in ('iptables','ip6tables'):
     # Only inspect inbound NEW flows whose original destination is a published host port.
     # Internal container egress and bridge-to-bridge flows are returned untouched.
     if binary=='iptables':
-        for proto,ports in [('tcp','53,80,443,32400,6881'),('udp','53,6881')]:
+        for proto,ports in [('tcp','53,80,443,8096,6881'),('udp','53,6881')]:
             rule('-A','HL-DOCKER','-s',lan,'-p',proto,'-m','multiport','--dports',ports,'-j','RETURN')
         for cidr in admins:
             if ':' not in cidr:
-                rule('-A','HL-DOCKER','-s',cidr,'-p','tcp','-m','multiport','--dports','53,80,443,32400','-j','RETURN')
+                rule('-A','HL-DOCKER','-s',cidr,'-p','tcp','-m','multiport','--dports','53,80,443','-j','RETURN')
                 rule('-A','HL-DOCKER','-s',cidr,'-p','udp','--dport','53','-j','RETURN')
     rule('-A','HL-DOCKER','-j','DROP')
     def ensure_jump(parent, args):

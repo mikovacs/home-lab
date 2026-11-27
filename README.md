@@ -1,6 +1,6 @@
 # HomeLab
 
-A home server built on Debian 13 and Docker Compose. It provides Plex and media tools, a browser-based file manager, a dashboard, automation and monitoring. You choose which applications to run. Cloudflare Tunnel and local AI are optional.
+A home server built on Debian 13 and Docker Compose. It provides Jellyfin and media tools, a browser-based file manager, a dashboard, automation and monitoring. You choose which applications to run. Cloudflare Tunnel and local AI are optional.
 
 The Bash entrypoint opens an interactive Python installer. It downloads a published GitHub release, prepares the host and starts your selected services. Settings, passwords and application data stay outside the source directory, so source updates do not replace them.
 
@@ -21,7 +21,7 @@ Download the installer from [GitHub Releases](https://github.com/mikovacs/home-l
 
 You need a published release, an existing ext4 media disk, a separate ext4 data disk, and a domain managed through Cloudflare DNS for the supplied HTTPS configuration. Cloudflare Tunnel is optional even when Cloudflare DNS is used for certificates. See [manual OS setup](docs/os-installation.md) and [hardware requirements](docs/hardware.md).
 
-The installer never formats or repairs disks, reorganizes the media library or recursively changes its permissions. Applications can write only to their assigned paths. Plex reads media without write access.
+The installer never formats or repairs disks, reorganizes the media library or recursively changes its permissions. Applications can write only to their assigned paths. Jellyfin read media without write access.
 
 ## What you can use
 
@@ -31,7 +31,7 @@ Replace `DOMAIN` with your configured domain. These addresses work after the cor
 | --- | --- |
 | Dashboard | Homepage — `https://home.DOMAIN` |
 | Server files | FileBrowser Quantum — `https://files.DOMAIN` |
-| Movies and TV | Plex — `https://plex.DOMAIN` |
+| Movies and TV | Jellyfin — `https://jellyfin.DOMAIN`; [library setup](docs/media.md) |
 | Media management | Radarr, Sonarr, Prowlarr and qBittorrent; optional Bazarr |
 | Accounts and MFA | Authentik — `https://auth.DOMAIN` |
 | Automation | n8n — `https://n8n.DOMAIN` |
